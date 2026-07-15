@@ -1,0 +1,5 @@
+vendor_repo_cache/
+__pycache__/
+*.pyc
+.venv/
+backfill_log.txt

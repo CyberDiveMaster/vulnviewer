@@ -1,0 +1,2 @@
+# No third-party dependencies. Everything used (json, sqlite3, subprocess,
+# datetime, re, pathlib) is Python standard library.
