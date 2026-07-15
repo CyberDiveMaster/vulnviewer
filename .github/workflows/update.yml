@@ -27,28 +27,62 @@ jobs:
       - name: Install dependencies
         run: pip install -r scripts/requirements.txt
 
-      - name: Cache vulnrichment clone
-        uses: actions/cache@v4
+      # Both caches below use a run_id-suffixed key + prefix restore-keys,
+      # with an explicit restore/save split (not the bundled actions/cache
+      # action). actions/cache only auto-saves at the end of a job when the
+      # exact key was a MISS; with a fixed key that already exists from an
+      # earlier run, later runs would keep restoring the same stale snapshot
+      # forever and never persist that run's updates. The run_id suffix
+      # guarantees a "miss" (thus a save) every run, while restore-keys still
+      # finds the most recent prior snapshot to restore from.
+      - name: Restore vulnrichment clone cache
+        uses: actions/cache/restore@v4
         with:
           path: vendor_repo_cache/vulnrichment
-          key: vulnrichment-clone-v1
+          key: vulnrichment-clone-${{ github.run_id }}
           restore-keys: |
             vulnrichment-clone-
+
+      # data/vulnviewer.db (~180MB+ and growing) is NEVER committed to git --
+      # it exceeds GitHub's 100MB per-file push limit. It persists only as
+      # an Actions cache entry. If this cache is ever evicted, re-run
+      # scripts/backfill_history.py locally once to rebuild it (see README).
+      - name: Restore vulnviewer DB cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/vulnviewer.db
+          key: vulnviewer-db-${{ github.run_id }}
+          restore-keys: |
+            vulnviewer-db-
 
       - name: Run incremental update
         run: python scripts/update_incremental.py
 
-      - name: Export static JSON
+      - name: Export static JSON (gzip-compressed)
         run: python scripts/export_json.py
 
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/vulnviewer.db docs/data/cves.json
+          git add docs/data/cves.json.gz
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
             git commit -m "Update Vulnrichment data"
             git push
           fi
+
+      - name: Save vulnrichment clone cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: vendor_repo_cache/vulnrichment
+          key: vulnrichment-clone-${{ github.run_id }}
+
+      - name: Save vulnviewer DB cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/vulnviewer.db
+          key: vulnviewer-db-${{ github.run_id }}

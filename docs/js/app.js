@@ -117,11 +117,28 @@ document.getElementById("global-search").addEventListener("input", (e) => {
   table.addFilter(globalSearchFilterFn);
 });
 
-fetch("data/cves.json")
+async function decodeMaybeGzip(buffer) {
+  // The committed file is gzip-compressed (raw JSON is ~150MB, over
+  // GitHub's 100MB push limit; gzipped it's ~10MB). Detect the gzip magic
+  // bytes (1f 8b) and only decompress if present -- if a CDN/proxy ever
+  // transparently decodes Content-Encoding on the way through, the bytes
+  // here would already be plain JSON text, so fall back to reading as-is.
+  const bytes = new Uint8Array(buffer);
+  const isGzip = bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+  if (isGzip && typeof DecompressionStream !== "undefined") {
+    const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return new Response(stream).text();
+  }
+  return new TextDecoder("utf-8").decode(buffer);
+}
+
+fetch("data/cves.json.gz")
   .then((res) => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    return res.arrayBuffer();
   })
+  .then(decodeMaybeGzip)
+  .then((text) => JSON.parse(text))
   .then((payload) => {
     document.getElementById("status").textContent =
       `${payload.cve_count.toLocaleString()} 件 / 最終更新: ${payload.generated_at}`;

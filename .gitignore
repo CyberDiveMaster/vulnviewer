@@ -2,4 +2,15 @@ vendor_repo_cache/
 __pycache__/
 *.pyc
 .venv/
-backfill_log.txt
+backfill_log*.txt
+
+# The SQLite DB (~180MB+) is never committed to git -- it exceeds GitHub's
+# 100MB per-file push limit. It persists only as a GitHub Actions cache
+# entry (see .github/workflows/update.yml) and as a local working copy.
+# Leading slash anchors this to the repo-root data/ dir only -- otherwise it
+# would also match (and wrongly exclude) docs/data/.
+/data/
+
+# Only the gzip-compressed export (docs/data/cves.json.gz) is committed;
+# the uncompressed JSON is a local-only intermediate for testing.
+docs/data/cves.json

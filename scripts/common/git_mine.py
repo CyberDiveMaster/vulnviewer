@@ -53,7 +53,11 @@ def get_tip_sha(repo_dir, ref="origin/develop"):
 
 
 def list_tree_files(repo_dir, ref="origin/develop"):
-    output = run_git(["ls-tree", "-r", "--name-only", ref, "--", "*.json"], cwd=repo_dir)
+    # Unlike `git log`/`git diff`, `git ls-tree` does not expand a bare
+    # wildcard pathspec ("*.json") across directory separators (and doesn't
+    # support ':(glob)' magic either) -- it silently matches nothing. So we
+    # list the full tree unfiltered and apply CVE_PATH_RE in Python instead.
+    output = run_git(["ls-tree", "-r", "--name-only", ref], cwd=repo_dir)
     return [line for line in output.splitlines() if CVE_PATH_RE.match(line)]
 
 

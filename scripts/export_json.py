@@ -2,6 +2,7 @@
 frontend. No joins needed client-side -- everything is pre-flattened here."""
 
 import argparse
+import gzip
 import json
 import sys
 from pathlib import Path
@@ -12,7 +13,12 @@ from common import db, pipeline
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "vulnviewer.db"
-DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "docs" / "data" / "cves.json"
+# Committed to git and served by GitHub Pages. Gzip-compressed because the
+# raw JSON is ~150MB for the full Vulnrichment dataset (162k+ CVEs), well
+# over GitHub's 100MB per-file push limit; compressed it's ~10MB. The
+# frontend (docs/js/app.js) decompresses it client-side via
+# DecompressionStream('gzip') before parsing.
+DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "docs" / "data" / "cves.json.gz"
 
 
 def build_grouped_maps(conn):
@@ -100,10 +106,14 @@ def main():
         "cve_count": len(rows),
         "rows": rows,
     }
-    with open(args.output, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    with gzip.open(args.output, "wb", compresslevel=9) as f:
+        f.write(encoded)
 
-    print(f"Exported {len(rows)} CVEs to {args.output}")
+    print(
+        f"Exported {len(rows)} CVEs to {args.output} "
+        f"({len(encoded) / 1024 / 1024:.1f}MB -> {args.output.stat().st_size / 1024 / 1024:.1f}MB gzipped)"
+    )
 
 
 if __name__ == "__main__":
