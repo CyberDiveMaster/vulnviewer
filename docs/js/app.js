@@ -8,6 +8,22 @@ function naFormatter(cell) {
   return v;
 }
 
+// Strips the sub-second fraction from an ISO timestamp (e.g.
+// "2023-08-29T19:38:55.399Z" -> "2023-08-29T19:38:55Z") -- the millisecond
+// precision comes straight from Vulnrichment's own timestamps and just adds
+// visual clutter here; the trailing Z/offset (UTC) is kept.
+function trimMillis(isoString) {
+  return String(isoString).replace(/\.\d+(Z|[+-]\d{2}:?\d{2})$/, "$1");
+}
+
+function dateFormatter(cell) {
+  const v = cell.getValue();
+  if (v === null || v === undefined || v === "") {
+    return '<span class="na-cell">N/A</span>';
+  }
+  return trimMillis(v);
+}
+
 function cveLinkFormatter(cell) {
   const v = cell.getValue();
   if (!v) return "";
@@ -149,12 +165,13 @@ const columns = [
     title: "Date Published", field: "date_published", sorter: "string", width: 220,
     headerFilter: dateRangeHeaderFilter, headerFilterFunc: dateRangeFilterFunc,
     headerFilterEmptyCheck: dateRangeEmptyCheck, headerFilterLiveFilter: false,
+    formatter: dateFormatter,
   },
   {
     title: "Active Since", field: "first_active_date", sorter: "string", width: 220,
     headerFilter: dateRangeHeaderFilter, headerFilterFunc: dateRangeFilterFunc,
     headerFilterEmptyCheck: dateRangeEmptyCheck, headerFilterLiveFilter: false,
-    formatter: naFormatter,
+    formatter: dateFormatter,
   },
   {
     title: "Days", field: "days_publish_to_active", sorter: "number",
@@ -202,7 +219,10 @@ const columns = [
   { title: "Vendor", field: "vendor", headerFilter: "input", formatter: naFormatter, width: 160 },
   { title: "Product", field: "product", headerFilter: "input", formatter: naFormatter, width: 160 },
   { title: "CWE", field: "cwe", headerFilter: "input", formatter: naFormatter, width: 150 },
-  { title: "Last Updated", field: "date_updated", sorter: "string", width: 130 },
+  {
+    title: "Last Updated", field: "date_updated", sorter: "string", width: 190,
+    formatter: dateFormatter,
+  },
 ];
 
 const table = new Tabulator("#cve-table", {
