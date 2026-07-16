@@ -39,6 +39,14 @@ header h1 {
   white-space: nowrap;
 }
 
+#export-status {
+  font-size: 0.85rem;
+}
+
+#export-status.error {
+  color: #c0392b;
+}
+
 #cve-table {
   height: 75vh;
 }

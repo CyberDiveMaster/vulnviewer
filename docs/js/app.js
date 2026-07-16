@@ -214,10 +214,28 @@ const table = new Tabulator("#cve-table", {
   initialSort: [{ column: "first_active_date", dir: "desc" }],
 });
 
+// Guard rail, not a hard technical limit -- the browser can build a CSV of
+// any size. This just keeps exports to something a spreadsheet-review
+// workflow can realistically use, and forces narrowing down (rather than
+// silently exporting the entire ~162k-row dataset) if filters are too broad.
+const MAX_CSV_EXPORT_ROWS = 5000;
+
+const exportStatus = document.getElementById("export-status");
+
 document.getElementById("export-csv").addEventListener("click", () => {
-  // No explicit range argument -- Tabulator's default downloadRowRange is
-  // "active", i.e. rows currently passing all header filters, in their
-  // current sort order. Not just the visible page.
+  // "active" = rows currently passing all header filters, in their current
+  // sort order -- not just the visible page. Same set download() would use.
+  const filteredCount = table.getDataCount("active");
+
+  if (filteredCount > MAX_CSV_EXPORT_ROWS) {
+    exportStatus.textContent =
+      `${filteredCount.toLocaleString()} rows match -- narrow filters to ${MAX_CSV_EXPORT_ROWS.toLocaleString()} or fewer to export.`;
+    exportStatus.classList.add("error");
+    return;
+  }
+
+  exportStatus.textContent = "";
+  exportStatus.classList.remove("error");
   table.download("csv", "vulnviewer-export.csv");
 });
 
