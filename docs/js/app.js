@@ -226,7 +226,13 @@ async function decodeMaybeGzip(buffer) {
   return new TextDecoder("utf-8").decode(buffer);
 }
 
-fetch("data/cves.json.gz")
+// "no-cache" (not "no-store") -- forces a revalidation request every load
+// rather than trusting GitHub Pages' CDN cache headers blindly, but still
+// lets the server return a cheap 304 when the data hasn't changed since the
+// last fetch. The data updates automatically twice a day; without this, a
+// long-lived cached copy could silently show stale CVE data after a plain
+// reload.
+fetch("data/cves.json.gz", { cache: "no-cache" })
   .then((res) => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.arrayBuffer();
