@@ -50,14 +50,6 @@ function minScoreFilterFunc(headerValue, rowValue) {
   return rowValue !== null && rowValue !== undefined && Number(rowValue) >= min;
 }
 
-function cvssVectorTooltip(e, cell) {
-  const row = cell.getRow().getData();
-  if (!row.cvss_all || row.cvss_all.length === 0) return "No CVSS data";
-  return row.cvss_all
-    .map((c) => `[${c.source}] v${c.version}: ${c.vector} (score ${c.base_score ?? "?"})`)
-    .join("\n");
-}
-
 // --- Date range header filter (from/to), shared by Date Published / Active Since ---
 // Plain text inputs, not <input type="date"> -- native date inputs render
 // their calendar/placeholder using the BROWSER's UI language (e.g. a
@@ -159,18 +151,6 @@ const columns = [
     title: "CVSS Score", field: "cvss_score", sorter: "number", width: 110,
     headerFilter: "input", headerFilterFunc: minScoreFilterFunc,
     headerFilterPlaceholder: "Min score", formatter: naFormatter,
-  },
-  {
-    title: "Severity", field: "cvss_severity", width: 120,
-    headerFilter: selectHeaderFilter({
-      CRITICAL: "CRITICAL", HIGH: "HIGH", MEDIUM: "MEDIUM", LOW: "LOW", NONE: "NONE",
-    }),
-    headerFilterFunc: nullableSelectFilterFunc,
-    formatter: naFormatter,
-  },
-  {
-    title: "CVSS Vector", field: "cvss_vector", headerFilter: "input",
-    formatter: naFormatter, tooltip: cvssVectorTooltip, width: 220,
   },
   {
     title: "AV", field: "cvss_av", width: 90, formatter: naFormatter,
