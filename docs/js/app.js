@@ -157,6 +157,10 @@ const columns = [
     formatter: naFormatter,
   },
   {
+    title: "Days", field: "days_publish_to_active", sorter: "number",
+    formatter: naFormatter, width: 90,
+  },
+  {
     title: "Exploitation", field: "exploitation", width: 130,
     headerFilter: selectHeaderFilter({ none: "none", poc: "poc", active: "active" }),
     headerFilterFunc: nullableSelectFilterFunc,
@@ -198,10 +202,6 @@ const columns = [
   { title: "Vendor", field: "vendor", headerFilter: "input", formatter: naFormatter, width: 160 },
   { title: "Product", field: "product", headerFilter: "input", formatter: naFormatter, width: 160 },
   { title: "CWE", field: "cwe", headerFilter: "input", formatter: naFormatter, width: 150 },
-  {
-    title: "Days: Publish→Active", field: "days_publish_to_active", sorter: "number",
-    formatter: naFormatter, width: 160,
-  },
   { title: "Last Updated", field: "date_updated", sorter: "string", width: 130 },
 ];
 
