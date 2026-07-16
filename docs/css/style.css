@@ -27,6 +27,9 @@ header h1 {
 
 .toolbar {
   margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 #global-search {
@@ -35,6 +38,13 @@ header h1 {
   padding: 0.4rem 0.6rem;
   font-size: 0.95rem;
   box-sizing: border-box;
+}
+
+#export-csv {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 #cve-table {

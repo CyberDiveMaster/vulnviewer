@@ -172,14 +172,6 @@ const columns = [
   { title: "Product", field: "product", headerFilter: "input", formatter: naFormatter, width: 160 },
   { title: "CWE", field: "cwe", headerFilter: "input", formatter: naFormatter, width: 150 },
   {
-    title: "Days: None→Active", field: "days_none_to_active", sorter: "number",
-    formatter: naFormatter, width: 150,
-  },
-  {
-    title: "Days: PoC→Active", field: "days_poc_to_active", sorter: "number",
-    formatter: naFormatter, width: 150,
-  },
-  {
     title: "Days: Publish→Active", field: "days_publish_to_active", sorter: "number",
     formatter: naFormatter, width: 160,
   },
@@ -192,6 +184,7 @@ const table = new Tabulator("#cve-table", {
   columns,
   placeholder: "No data",
   columnDefaults: { headerFilterLiveFilter: true },
+  initialSort: [{ column: "first_active_date", dir: "desc" }],
 });
 
 const GLOBAL_SEARCH_FIELDS = ["cve_id", "vendor", "product", "cwe", "cvss_vector"];
@@ -209,6 +202,13 @@ document.getElementById("global-search").addEventListener("input", (e) => {
   globalSearchFilterFn = (row) =>
     GLOBAL_SEARCH_FIELDS.some((f) => String(row[f] ?? "").toLowerCase().includes(term));
   table.addFilter(globalSearchFilterFn);
+});
+
+document.getElementById("export-csv").addEventListener("click", () => {
+  // No explicit range argument -- Tabulator's default downloadRowRange is
+  // "active", i.e. rows currently passing all filters (header filters +
+  // global search), in their current sort order. Not just the visible page.
+  table.download("csv", "vulnviewer-export.csv");
 });
 
 async function decodeMaybeGzip(buffer) {
