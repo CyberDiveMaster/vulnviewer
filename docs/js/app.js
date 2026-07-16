@@ -50,33 +50,60 @@ function minScoreFilterFunc(headerValue, rowValue) {
   return rowValue !== null && rowValue !== undefined && Number(rowValue) >= min;
 }
 
-// --- Date range header filter (from/to), shared by Date Published / Active Since ---
-// Plain text inputs, not <input type="date"> -- native date inputs render
-// their calendar/placeholder using the BROWSER's UI language (e.g. a
-// Japanese-language browser shows "年/月/日" regardless of this page's
-// lang="en"), which isn't something the page can override. Text inputs
-// with an explicit YYYY-MM-DD placeholder display identically everywhere.
+// --- Date range header filter, shared by Date Published / Active Since ---
+// A single readonly text input backed by a Flatpickr range-mode calendar --
+// click a start day then an end day, no typing. Flatpickr's own UI text is
+// always English regardless of the browser's language, unlike a native
+// <input type="date"> (which renders its calendar/format using the
+// BROWSER's UI language -- e.g. a Japanese-language browser shows "年/月/日"
+// regardless of this page's lang="en", and that isn't overridable).
+
+function formatDateLocal(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 function dateRangeHeaderFilter(cell, onRendered, success) {
   const container = document.createElement("span");
   container.classList.add("range-filter");
 
-  const from = document.createElement("input");
-  from.type = "text";
-  from.placeholder = "From (YYYY-MM-DD)";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.readOnly = true;
+  input.placeholder = "Select range...";
 
-  const to = document.createElement("input");
-  to.type = "text";
-  to.placeholder = "To (YYYY-MM-DD)";
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.textContent = "×";
+  clearBtn.title = "Clear";
+  clearBtn.classList.add("range-clear");
 
-  function emit() {
-    success({ from: from.value.trim(), to: to.value.trim() });
-  }
-  from.addEventListener("change", emit);
-  to.addEventListener("change", emit);
+  container.appendChild(input);
+  container.appendChild(clearBtn);
 
-  container.appendChild(from);
-  container.appendChild(to);
+  // Flatpickr needs the input attached to the DOM (for positioning its
+  // popup), which onRendered guarantees -- the filter function above only
+  // builds detached elements.
+  onRendered(() => {
+    const fp = flatpickr(input, {
+      mode: "range",
+      dateFormat: "Y-m-d",
+      onClose: (selectedDates) => {
+        const [from, to] = selectedDates;
+        success({
+          from: from ? formatDateLocal(from) : "",
+          to: to ? formatDateLocal(to) : "",
+        });
+      },
+    });
+    clearBtn.addEventListener("click", () => {
+      fp.clear();
+      success({ from: "", to: "" });
+    });
+  });
+
   return container;
 }
 
@@ -187,27 +214,10 @@ const table = new Tabulator("#cve-table", {
   initialSort: [{ column: "first_active_date", dir: "desc" }],
 });
 
-const GLOBAL_SEARCH_FIELDS = ["cve_id", "vendor", "product", "cwe", "cvss_vector"];
-let globalSearchFilterFn = null;
-
-document.getElementById("global-search").addEventListener("input", (e) => {
-  // addFilter/removeFilter (not setFilter) so this coexists with the
-  // per-column header filters instead of replacing the whole filter stack.
-  if (globalSearchFilterFn) {
-    table.removeFilter(globalSearchFilterFn);
-    globalSearchFilterFn = null;
-  }
-  const term = e.target.value.trim().toLowerCase();
-  if (!term) return;
-  globalSearchFilterFn = (row) =>
-    GLOBAL_SEARCH_FIELDS.some((f) => String(row[f] ?? "").toLowerCase().includes(term));
-  table.addFilter(globalSearchFilterFn);
-});
-
 document.getElementById("export-csv").addEventListener("click", () => {
   // No explicit range argument -- Tabulator's default downloadRowRange is
-  // "active", i.e. rows currently passing all filters (header filters +
-  // global search), in their current sort order. Not just the visible page.
+  // "active", i.e. rows currently passing all header filters, in their
+  // current sort order. Not just the visible page.
   table.download("csv", "vulnviewer-export.csv");
 });
 
