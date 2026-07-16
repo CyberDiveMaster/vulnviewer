@@ -85,6 +85,7 @@ def build_rows(conn):
             "exploitation_left_censored": bool(cve["exploitation_left_censored"]),
             "days_none_to_active": cve["days_none_to_active"],
             "days_poc_to_active": cve["days_poc_to_active"],
+            "days_publish_to_active": cve["days_publish_to_active"],
         })
 
     return rows

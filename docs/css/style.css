@@ -44,3 +44,16 @@ header h1 {
 .na-cell {
   opacity: 0.5;
 }
+
+.range-filter {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.range-filter input[type="date"] {
+  width: 50%;
+  min-width: 0;
+  font-size: 0.75rem;
+  padding: 0.1rem;
+  box-sizing: border-box;
+}

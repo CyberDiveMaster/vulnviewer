@@ -4,7 +4,7 @@ and export_json.py. Kept dependency-free (stdlib sqlite3 only)."""
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS cve (
     exploitation_left_censored INTEGER DEFAULT 0,
     days_none_to_active INTEGER,
     days_poc_to_active INTEGER,
+    days_publish_to_active INTEGER,
     raw_file_path TEXT,
     last_seen_sha TEXT,
     updated_at TEXT
@@ -96,9 +97,17 @@ def connect(db_path):
 
 def init_schema(conn):
     conn.executescript(_DDL)
-    if meta_get(conn, "schema_version") is None:
-        meta_set(conn, "schema_version", SCHEMA_VERSION)
+    _ensure_column(conn, "cve", "days_publish_to_active", "INTEGER")
+    meta_set(conn, "schema_version", SCHEMA_VERSION)
     conn.commit()
+
+
+def _ensure_column(conn, table, column, coltype):
+    """CREATE TABLE IF NOT EXISTS only helps brand-new DBs; existing local
+    DBs need an explicit ALTER TABLE when a column is added later."""
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
 
 
 def meta_get(conn, key, default=None):
@@ -230,19 +239,43 @@ def recompute_derived(conn, cve_id):
     days_none_to_active = _day_delta(first_none, first_active)
     days_poc_to_active = _day_delta(first_poc, first_active)
 
+    cve_row = conn.execute("SELECT date_published FROM cve WHERE cve_id = ?", (cve_id,)).fetchone()
+    date_published = cve_row["date_published"] if cve_row else None
+    days_publish_to_active = _publish_day_delta(date_published, first_active)
+
     conn.execute(
         """UPDATE cve SET first_none_date=?, first_poc_date=?, first_active_date=?,
-           exploitation_left_censored=?, days_none_to_active=?, days_poc_to_active=?
+           exploitation_left_censored=?, days_none_to_active=?, days_poc_to_active=?,
+           days_publish_to_active=?
            WHERE cve_id=?""",
         (first_none, first_poc, first_active, left_censored,
-         days_none_to_active, days_poc_to_active, cve_id),
+         days_none_to_active, days_poc_to_active, days_publish_to_active, cve_id),
     )
 
 
-def _day_delta(start_iso, end_iso):
-    if not start_iso or not end_iso or start_iso >= end_iso:
-        return None
+def _to_date(iso_str):
     from datetime import datetime
-    start = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
-    end = datetime.fromisoformat(end_iso.replace("Z", "+00:00"))
+    return datetime.fromisoformat(iso_str.replace("Z", "+00:00")).date()
+
+
+def _day_delta(start_iso, end_iso):
+    """Whole calendar days between two ISO timestamps, ignoring time-of-day.
+    None if either side is missing or start is after end (should not happen
+    given these are walked in chronological order, but guards against it)."""
+    if not start_iso or not end_iso:
+        return None
+    start, end = _to_date(start_iso), _to_date(end_iso)
+    if end < start:
+        return None
     return (end - start).days
+
+
+def _publish_day_delta(published_iso, active_iso):
+    """Whole calendar days from date_published to first_active_date. Unlike
+    _day_delta, a same-day-or-earlier transition clamps to 0 rather than
+    None -- e.g. a CVE assessed as "active" on the very day it was published
+    should read 0, not N/A. None only when the CVE never became active."""
+    if not published_iso or not active_iso:
+        return None
+    published, active = _to_date(published_iso), _to_date(active_iso)
+    return max((active - published).days, 0)
