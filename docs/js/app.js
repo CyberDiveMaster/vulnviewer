@@ -1,11 +1,40 @@
 const NONE_SENTINEL = "__none__";
 
+const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+// Formatters below build HTML strings that Tabulator inserts directly into
+// the cell, so any value coming from the (externally-sourced) Vulnrichment
+// data must be escaped here rather than trusted as-is.
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+}
+
 function naFormatter(cell) {
   const v = cell.getValue();
   if (v === null || v === undefined || v === "") {
     return '<span class="na-cell">N/A</span>';
   }
-  return v;
+  return escapeHtml(v);
+}
+
+// A handful of Vendor/Product values are pathologically long (e.g. one CVE
+// lists 100+ individual product model numbers, 130k+ characters joined
+// together) which would otherwise force that column absurdly wide under
+// fitDataStretch sizing. Truncate for display; the full value is still
+// available via the tooltip and in CSV exports.
+function truncateFormatter(maxLen) {
+  return function (cell) {
+    const v = cell.getValue();
+    if (v === null || v === undefined || v === "") {
+      return '<span class="na-cell">N/A</span>';
+    }
+    const str = String(v);
+    return str.length <= maxLen ? escapeHtml(str) : escapeHtml(str.slice(0, maxLen)) + "…";
+  };
+}
+
+function fullValueTooltip(e, cell) {
+  return cell.getValue() || "";
 }
 
 // Strips the sub-second fraction from an ISO timestamp (e.g.
@@ -27,7 +56,7 @@ function dateFormatter(cell) {
 function cveLinkFormatter(cell) {
   const v = cell.getValue();
   if (!v) return "";
-  return `<a href="https://www.cve.org/CVERecord?id=${encodeURIComponent(v)}" target="_blank" rel="noopener">${v}</a>`;
+  return `<a href="https://www.cve.org/CVERecord?id=${encodeURIComponent(v)}" target="_blank" rel="noopener">${escapeHtml(v)}</a>`;
 }
 
 function selectValuesWithNone(labels) {
@@ -160,67 +189,76 @@ function parseVectorComponents(vector) {
 }
 
 const columns = [
-  { title: "CVE ID", field: "cve_id", headerFilter: "input", formatter: cveLinkFormatter, width: 150, frozen: true },
+  { title: "CVE ID", field: "cve_id", headerFilter: "input", formatter: cveLinkFormatter, frozen: true },
   {
-    title: "Date Published", field: "date_published", sorter: "string", width: 220,
+    title: "Date Published", field: "date_published", sorter: "string",
     headerFilter: dateRangeHeaderFilter, headerFilterFunc: dateRangeFilterFunc,
     headerFilterEmptyCheck: dateRangeEmptyCheck, headerFilterLiveFilter: false,
     formatter: dateFormatter,
   },
   {
-    title: "Active Since", field: "first_active_date", sorter: "string", width: 220,
+    title: "Active Since", field: "first_active_date", sorter: "string",
     headerFilter: dateRangeHeaderFilter, headerFilterFunc: dateRangeFilterFunc,
     headerFilterEmptyCheck: dateRangeEmptyCheck, headerFilterLiveFilter: false,
     formatter: dateFormatter,
   },
   {
     title: "Days", field: "days_publish_to_active", sorter: "number",
-    formatter: naFormatter, width: 90,
+    formatter: naFormatter,
   },
   {
-    title: "Exploitation", field: "exploitation", width: 130,
+    title: "Exploitation", field: "exploitation",
     headerFilter: selectHeaderFilter({ none: "none", poc: "poc", active: "active" }),
     headerFilterFunc: nullableSelectFilterFunc,
     formatter: naFormatter,
   },
   {
-    title: "Automatable", field: "automatable", width: 120,
+    title: "Automatable", field: "automatable",
     headerFilter: selectHeaderFilter({ yes: "yes", no: "no" }),
     headerFilterFunc: nullableSelectFilterFunc,
     formatter: naFormatter,
   },
   {
-    title: "Technical Impact", field: "technical_impact", width: 150,
+    title: "Technical Impact", field: "technical_impact",
     headerFilter: selectHeaderFilter({ partial: "partial", total: "total" }),
     headerFilterFunc: nullableSelectFilterFunc,
     formatter: naFormatter,
   },
   {
-    title: "CVSS Score", field: "cvss_score", sorter: "number", width: 110,
+    title: "CVSS Score", field: "cvss_score", sorter: "number",
     headerFilter: "input", headerFilterFunc: minScoreFilterFunc,
     headerFilterPlaceholder: "Min score", formatter: naFormatter,
   },
   {
-    title: "AV", field: "cvss_av", width: 90, formatter: naFormatter,
+    title: "AV", field: "cvss_av", formatter: naFormatter,
     headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.AV), headerFilterFunc: nullableSelectFilterFunc,
   },
   {
-    title: "AC", field: "cvss_ac", width: 90, formatter: naFormatter,
+    title: "AC", field: "cvss_ac", formatter: naFormatter,
     headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.AC), headerFilterFunc: nullableSelectFilterFunc,
   },
   {
-    title: "PR", field: "cvss_pr", width: 90, formatter: naFormatter,
+    title: "PR", field: "cvss_pr", formatter: naFormatter,
     headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.PR), headerFilterFunc: nullableSelectFilterFunc,
   },
   {
-    title: "UI", field: "cvss_ui", width: 90, formatter: naFormatter,
+    title: "UI", field: "cvss_ui", formatter: naFormatter,
     headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.UI), headerFilterFunc: nullableSelectFilterFunc,
   },
-  { title: "Vendor", field: "vendor", headerFilter: "input", formatter: naFormatter, width: 160 },
-  { title: "Product", field: "product", headerFilter: "input", formatter: naFormatter, width: 160 },
-  { title: "CWE", field: "cwe", headerFilter: "input", formatter: naFormatter, width: 150 },
   {
-    title: "Last Updated", field: "date_updated", sorter: "string", width: 190,
+    title: "Vendor", field: "vendor", headerFilter: "input",
+    formatter: truncateFormatter(50), tooltip: fullValueTooltip,
+  },
+  {
+    title: "Product", field: "product", headerFilter: "input",
+    formatter: truncateFormatter(50), tooltip: fullValueTooltip,
+  },
+  {
+    title: "CWE", field: "cwe", headerFilter: "input",
+    formatter: truncateFormatter(50), tooltip: fullValueTooltip,
+  },
+  {
+    title: "Last Updated", field: "date_updated", sorter: "string",
     formatter: dateFormatter,
   },
 ];
