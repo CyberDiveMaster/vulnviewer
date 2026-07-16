@@ -45,8 +45,10 @@ jobs:
 
       # data/vulnviewer.db (~180MB+ and growing) is NEVER committed to git --
       # it exceeds GitHub's 100MB per-file push limit. It persists only as
-      # an Actions cache entry. If this cache is ever evicted, re-run
-      # scripts/backfill_history.py locally once to rebuild it (see README).
+      # an Actions cache entry. If this cache is ever missing/evicted,
+      # update_incremental.py detects the missing baseline and automatically
+      # re-mines the full history itself (slower that one run, but no manual
+      # intervention needed).
       - name: Restore vulnviewer DB cache
         uses: actions/cache/restore@v4
         with:

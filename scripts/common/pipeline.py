@@ -114,3 +114,25 @@ def recompute_derived_for(conn, cve_ids):
     for cve_id in cve_ids:
         db.recompute_derived(conn, cve_id)
     conn.commit()
+
+
+def run_full_mine(conn, repo_dir, until_ref, tip_sha):
+    """Full-history bootstrap: mine the ENTIRE Exploitation history (from
+    scratch, or resuming from meta.last_processed_sha if this is a resumed
+    partial run) and ingest every CVE file's current snapshot. Used both by
+    backfill_history.py (always) and update_incremental.py (only when no
+    baseline exists yet -- e.g. the GitHub Actions cache for data/vulnviewer.db
+    was never populated, such as its first-ever run)."""
+    resume_from_sha = db.meta_get(conn, "last_processed_sha")
+    mine_exploitation_history(conn, repo_dir, until_ref, resume_from_sha)
+
+    all_files = git_mine.list_tree_files(repo_dir, ref=tip_sha)
+    ingest_snapshot(conn, repo_dir, tip_sha, all_files)
+
+    all_cve_ids = [row["cve_id"] for row in conn.execute("SELECT DISTINCT cve_id FROM exploitation_history")]
+    print(f"Recomputing derived columns for {len(all_cve_ids)} CVEs with history...")
+    recompute_derived_for(conn, all_cve_ids)
+
+    db.meta_set(conn, "last_processed_sha", tip_sha)
+    db.meta_set(conn, "backfill_completed_at", now_iso())
+    conn.commit()

@@ -1,5 +1,4 @@
-"""Scheduled (GitHub Actions) incremental update job. Run AFTER
-backfill_history.py has established meta.last_processed_sha at least once.
+"""Scheduled (GitHub Actions) incremental update job.
 
 Each run:
   1. Fetches new commits on the vulnrichment repo since last_processed_sha.
@@ -9,8 +8,11 @@ Each run:
   4. Recomputes derived columns only for CVEs touched this run.
   5. Advances meta.last_processed_sha to the new tip.
 
-Deliberately does NOT fall back to a full history mine if last_processed_sha
-is missing -- that is backfill_history.py's job, run once locally.
+If meta.last_processed_sha is missing -- e.g. the GitHub Actions cache for
+data/vulnviewer.db was never populated (its very first run ever, or the
+cache was evicted) -- this falls back to a full history mine (same as
+backfill_history.py) rather than failing. Actions jobs default to a 6-hour
+timeout, comfortably enough for this one-time bootstrap.
 """
 
 import argparse
@@ -39,20 +41,19 @@ def main():
     conn = db.connect(args.db)
     db.init_schema(conn)
 
-    last_sha = db.meta_get(conn, "last_processed_sha")
-    if not last_sha:
-        print(
-            "ERROR: meta.last_processed_sha is not set. Run scripts/backfill_history.py "
-            "locally first to establish the initial baseline.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
     print(f"Cloning/using {args.repo_url} at {args.clone_dir} ...")
     git_mine.clone_if_missing(args.clone_dir, args.repo_url, branch=args.branch)
     git_mine.fetch(args.clone_dir, branch=args.branch)
     until_ref = f"origin/{args.branch}"
     tip_sha = git_mine.get_tip_sha(args.clone_dir, ref=until_ref)
+
+    last_sha = db.meta_get(conn, "last_processed_sha")
+    if not last_sha:
+        print("No baseline found (meta.last_processed_sha unset) -- bootstrapping via full history mine.")
+        pipeline.run_full_mine(conn, args.clone_dir, until_ref, tip_sha)
+        conn.close()
+        print(f"Bootstrap complete. last_processed_sha={tip_sha}")
+        return
 
     if tip_sha == last_sha:
         print("No new commits since last run. Nothing to do.")

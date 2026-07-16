@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Vulnrichment Viewer 仕様書</title>
+<style>
+  body {
+    font-family: "Segoe UI", "Hiragino Sans", "Meiryo", sans-serif;
+    color: #1a1a1a;
+    line-height: 1.7;
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 2rem 2.5rem;
+    font-size: 14px;
+  }
+  h1 {
+    font-size: 22px;
+    border-bottom: 3px solid #2c3e50;
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.3rem;
+  }
+  .subtitle {
+    color: #666;
+    font-size: 12px;
+    margin-bottom: 2rem;
+  }
+  h2 {
+    font-size: 16px;
+    background: #2c3e50;
+    color: #fff;
+    padding: 0.4rem 0.8rem;
+    margin-top: 2.2rem;
+    margin-bottom: 0.8rem;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 14px;
+    color: #2c3e50;
+    border-left: 4px solid #2c3e50;
+    padding-left: 0.5rem;
+    margin-top: 1.4rem;
+    page-break-after: avoid;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.8rem 0 1.2rem;
+    font-size: 12.5px;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #eef1f4;
+  }
+  code {
+    background: #f2f2f2;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+  .note {
+    background: #fff8e1;
+    border-left: 4px solid #f0ad4e;
+    padding: 0.6rem 0.9rem;
+    margin: 0.8rem 0;
+    font-size: 13px;
+  }
+  ul, ol {
+    margin: 0.3rem 0 0.8rem;
+    padding-left: 1.4rem;
+  }
+  li {
+    margin-bottom: 0.2rem;
+  }
+  .meta-table td:first-child {
+    font-weight: 600;
+    width: 160px;
+    background: #f7f7f7;
+  }
+  footer {
+    margin-top: 3rem;
+    font-size: 11px;
+    color: #999;
+    border-top: 1px solid #ddd;
+    padding-top: 0.8rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>Vulnrichment Viewer 仕様書</h1>
+<div class="subtitle">Version 1.0 / 2026年7月</div>
+
+<table class="meta-table">
+  <tr><td>公開URL</td><td>https://cyberdivemaster.github.io/vulnviewer/</td></tr>
+  <tr><td>リポジトリ</td><td>https://github.com/CyberDiveMaster/vulnviewer</td></tr>
+  <tr><td>データソース</td><td>CISA Vulnrichment（https://github.com/cisagov/vulnrichment）</td></tr>
+  <tr><td>ホスティング</td><td>GitHub Pages（静的配信、サーバーレス）</td></tr>
+</table>
+
+<h2>1. 概要</h2>
+<p>
+Vulnrichment Viewerは、CISAが公開している脆弱性エンリッチメントデータセット「Vulnrichment」を、
+CVSS値・SSVC評価（Exploitation / Automatable / Technical Impact）・CVSSベクタ成分（AV/AC/PR/UI）・
+Vendor / Product / CWEなど多様な条件でフィルタ・ソートしながら閲覧できる軽量Webビューワーである。
+</p>
+<p>
+既存の類似ツールを探したが見当たらなかったため、個人で開発した。バックエンドサーバーを持たず、
+GitHub ActionsによるデータのバッチクロールとGitHub Pagesによる静的配信のみで構成されており、
+運用コストは実質ゼロである。
+</p>
+
+<h2>2. 背景・目的</h2>
+<ul>
+  <li>Vulnrichmentが提供するSSVC評価値（Exploitation等）は現在値のスナップショットのみで、
+      「いつActiveになったか」という履歴情報を直接は提供していない。本ツールはVulnrichmentリポジトリの
+      git履歴を独自にマイニングし、CVEの公開日からSSVC Exploitation評価がActiveになるまでの日数を
+      算出・表示する点が最大の特徴である。</li>
+  <li>サーバー運用・DBホスティングのコストと管理負担を避けるため、GitHub Actions + GitHub Pages +
+      クライアントサイドJavaScriptのみで完結する構成を採用した。</li>
+</ul>
+
+<h2>3. システム構成</h2>
+<h3>3.1 全体アーキテクチャ</h3>
+<ol>
+  <li><b>初回バックフィル</b>（ローカル・手動、1回のみ）: Vulnrichmentリポジトリの全git履歴をマイニングし、
+      SQLite DB（<code>data/vulnviewer.db</code>）を構築する。</li>
+  <li><b>定期更新</b>（GitHub Actions、1日2回・cron）: 前回処理分からの新規コミットのみを取り込み、
+      DBを差分更新する。DB自体はサイズが大きい（約180MB超）ためGitにはコミットせず、
+      GitHub Actionsのキャッシュ機能のみで永続化する。</li>
+  <li><b>静的JSON書き出し</b>: DBの内容をフラットな1CVE=1行のJSONに変換し、gzip圧縮した上で
+      <code>docs/data/cves.json.gz</code>としてリポジトリにコミットする（GitHub Pagesがそのまま配信）。</li>
+  <li><b>フロントエンド</b>: ブラウザがgzip済みJSONを取得・解凍し、Tabulator.js（テーブル表示・フィルタ・
+      ソート）とFlatpickr（日付レンジ選択カレンダー）を用いて全件クライアントサイドで表示する。
+      バックエンドAPIは存在しない。</li>
+</ol>
+
+<h3>3.2 技術スタック</h3>
+<table>
+  <tr><th>レイヤー</th><th>技術</th><th>役割</th></tr>
+  <tr><td>データ取得・加工</td><td>Python 3（標準ライブラリのみ、git CLIをsubprocess経由で使用）</td><td>Vulnrichmentのクローン・履歴マイニング・SQLite管理・JSON書き出し</td></tr>
+  <tr><td>永続化</td><td>SQLite</td><td>CVEスナップショット・Exploitation状態遷移履歴の保管</td></tr>
+  <tr><td>自動化</td><td>GitHub Actions（cron: 毎日 UTC 0時・12時）</td><td>データの定期取得・更新・コミット</td></tr>
+  <tr><td>配信</td><td>GitHub Pages（<code>main</code>ブランチ<code>/docs</code>）</td><td>静的ファイルのホスティング</td></tr>
+  <tr><td>UI</td><td>Tabulator.js 6.3.0 / Flatpickr 4.6.13（いずれもCDN経由、ビルド不要）</td><td>テーブル表示・フィルタ・ソート・日付レンジ選択</td></tr>
+</table>
+
+<h2>4. データソースとフィールドマッピング</h2>
+<p>Vulnrichmentは1CVEにつき1つのJSONファイル（パス例: <code>2025/32xxx/CVE-2025-32432.json</code>、CVE 5.xフォーマット）を持つ。主なマッピングは以下の通り。</p>
+<table>
+  <tr><th>Vulnrichment側の項目</th><th>取得元パス</th></tr>
+  <tr><td>Exploitation / Automatable / Technical Impact</td><td><code>containers.adp[].metrics[].other.content.options[]</code>（SSVC評価、CISA ADP）</td></tr>
+  <tr><td>CVSSベクタ・スコア</td><td><code>containers.cna.metrics[].cvssV3_1</code> 等（CNA提供）、ADP提供分も別途取得</td></tr>
+  <tr><td>Vendor / Product</td><td><code>containers.cna.affected[]</code></td></tr>
+  <tr><td>CWE</td><td><code>containers.cna.problemTypes[].descriptions[]</code></td></tr>
+  <tr><td>公開日・予約日・更新日</td><td><code>cveMetadata.datePublished / dateReserved / dateUpdated</code></td></tr>
+</table>
+
+<h2>5. データベーススキーマ（SQLite）</h2>
+<table>
+  <tr><th>テーブル</th><th>役割</th></tr>
+  <tr><td><code>meta</code></td><td>処理済みgitコミットSHA・最終更新日時などの状態管理</td></tr>
+  <tr><td><code>cve</code></td><td>CVEごとの現在スナップショット（CVSS・SSVC評価値・派生列を含む）</td></tr>
+  <tr><td><code>cve_vendor_product</code></td><td>Vendor/Productの1:N関係</td></tr>
+  <tr><td><code>cve_cwe</code></td><td>CWEの1:N関係</td></tr>
+  <tr><td><code>cve_cvss</code></td><td>CNA/ADP双方のCVSSベクタ（1CVEに複数存在しうる）</td></tr>
+  <tr><td><code>exploitation_history</code></td><td>Exploitation値の状態遷移履歴（git履歴マイニングにより構築、日数計算の根拠データ）</td></tr>
+</table>
+
+<h3>5.1 派生列（<code>cve</code>テーブル）</h3>
+<table>
+  <tr><th>列名</th><th>説明</th></tr>
+  <tr><td><code>first_none_date / first_poc_date / first_active_date</code></td><td>各Exploitation値が最初に観測された日時</td></tr>
+  <tr><td><code>exploitation_left_censored</code></td><td>git履歴上の初出時点で既にpoc/activeだった（遷移元が観測不能）ことを示すフラグ</td></tr>
+  <tr><td><code>days_publish_to_active</code></td><td>CVE公開日からExploitationが最初にActiveになるまでの日数。公開当日にActive化した場合は0。Active化した記録が一度もない場合はNULL</td></tr>
+</table>
+<div class="note">
+Exploitation状態の履歴は、Vulnrichmentリポジトリのgit履歴を <code>git log -G'"Exploitation"'</code>
+によるピックアックス検索で絞り込み、コミット単位でJSONを構造的に比較することで検出している
+（フォーマット変更のみのコミットを誤検知しないための対策）。
+</div>
+
+<h2>6. フロントエンド仕様</h2>
+<h3>6.1 画面構成</h3>
+<ul>
+  <li>ヘッダー: タイトル、データ件数・最終更新時刻</li>
+  <li>ツールバー: フィルタ該当件数表示、CSVエクスポートボタン</li>
+  <li>テーブル本体: 全件クライアントサイドでロードし、Tabulatorの仮想DOMで表示（ページネーションなし）</li>
+</ul>
+
+<h3>6.2 列とフィルタ仕様</h3>
+<table>
+  <tr><th>列</th><th>フィルタ方式</th><th>備考</th></tr>
+  <tr><td>CVE ID</td><td>テキスト部分一致</td><td>cve.org へのリンク付き</td></tr>
+  <tr><td>Date Published</td><td>日付レンジ（Flatpickrカレンダー、From/To）</td><td></td></tr>
+  <tr><td>Active Since</td><td>日付レンジ（Flatpickrカレンダー、From/To）</td><td><code>first_active_date</code></td></tr>
+  <tr><td>Exploitation</td><td>選択式（none / poc / active / 評価なし）</td><td></td></tr>
+  <tr><td>Automatable</td><td>選択式（yes / no / 評価なし）</td><td></td></tr>
+  <tr><td>Technical Impact</td><td>選択式（partial / total / 評価なし）</td><td></td></tr>
+  <tr><td>CVSS Score</td><td>最小値入力</td><td>入力値以上のスコアを表示</td></tr>
+  <tr><td>AV / AC / PR / UI</td><td>選択式</td><td>主CVSSベクタからクライアントサイドで抽出（CVSS v3.x / v4.0双方の値域に対応）</td></tr>
+  <tr><td>Vendor / Product / CWE</td><td>テキスト部分一致</td><td></td></tr>
+  <tr><td>Days: Publish→Active</td><td>ソートのみ</td><td>NULLは「N/A」表示</td></tr>
+  <tr><td>Last Updated</td><td>ソートのみ</td><td><code>date_updated</code></td></tr>
+</table>
+<p>初期表示は <b>Active Since の新しい順（降順）</b>。全列で複数列ソート（Shiftクリック）に対応。</p>
+
+<h3>6.3 CSVエクスポート</h3>
+<ul>
+  <li>「Export CSV」ボタン押下時、<b>現在適用中の全フィルタを通過した行のみ</b>（表示中のソート順）をCSV化する。</li>
+  <li>該当件数が5,000件を超える場合はエクスポートを行わず、件数を絞り込むよう促すエラーメッセージを表示する（スプレッドシートでの実用性を考慮した上限）。</li>
+</ul>
+
+<h3>6.4 データ鮮度</h3>
+<ul>
+  <li>JSONデータ取得は <code>cache: "no-cache"</code> を指定し、ページ読み込み毎に必ずサーバーへ再検証を行う（GitHub PagesのCDNキャッシュにより古いデータが表示され続けることを防止）。</li>
+  <li>ページ自体（HTML/JS）はブラウザ・CDNキャッシュの影響を受けるため、コード変更直後はハードリロード（Ctrl+Shift+R）が必要な場合がある。</li>
+</ul>
+
+<h2>7. 運用・制限事項</h2>
+<ul>
+  <li>データ更新頻度: 1日2回（UTC 0時・12時）。GitHub Actions（Publicリポジトリのため実行時間無制限）で自動実行。</li>
+  <li>SQLite DBはGitHub Actionsのキャッシュのみで永続化しており、Gitへはコミットしていない
+      （ファイルサイズがGitHubの1ファイル100MB制限を超えるため）。キャッシュが失効した場合は、
+      次回実行時に全履歴マイニングを自動的にやり直す（データの整合性は保たれるが、その回のみ処理時間が延びる）。</li>
+  <li>Exploitation状態の遷移日数（Publish→Active等）は、Vulnrichmentのgit履歴上で実際に観測できた
+      範囲でのみ算出される。履歴上の初出時点で既にActive/PoCだったCVEについては遷移元が不明なため、
+      該当項目は「N/A」として扱う。</li>
+  <li>SSVC評価自体が存在しないCVE（CNAのみのレコード）は、Exploitation等の値がNULL（未評価）となり、
+      文字列としての"none"とは区別される。</li>
+</ul>
+
+<footer>
+Vulnrichment Viewer 仕様書 — 個人開発ツール。データソースの権利はCISA / cve.orgに帰属する。
+</footer>
+
+</body>
+</html>

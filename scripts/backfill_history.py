@@ -46,19 +46,7 @@ def main():
     conn = db.connect(args.db)
     db.init_schema(conn)
 
-    resume_from_sha = db.meta_get(conn, "last_processed_sha")
-    pipeline.mine_exploitation_history(conn, args.clone_dir, until_ref, resume_from_sha)
-
-    all_files = git_mine.list_tree_files(args.clone_dir, ref=tip_sha)
-    pipeline.ingest_snapshot(conn, args.clone_dir, tip_sha, all_files)
-
-    all_cve_ids = [row["cve_id"] for row in conn.execute("SELECT DISTINCT cve_id FROM exploitation_history")]
-    print(f"Recomputing derived columns for {len(all_cve_ids)} CVEs with history...")
-    pipeline.recompute_derived_for(conn, all_cve_ids)
-
-    db.meta_set(conn, "last_processed_sha", tip_sha)
-    db.meta_set(conn, "backfill_completed_at", pipeline.now_iso())
-    conn.commit()
+    pipeline.run_full_mine(conn, args.clone_dir, until_ref, tip_sha)
     conn.close()
 
     print(f"Backfill complete. last_processed_sha={tip_sha}")
