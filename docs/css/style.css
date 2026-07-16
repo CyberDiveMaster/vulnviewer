@@ -50,10 +50,16 @@ header h1 {
   gap: 0.25rem;
 }
 
-.range-filter input[type="date"] {
+.range-filter input[type="text"] {
   width: 50%;
   min-width: 0;
   font-size: 0.75rem;
   padding: 0.1rem;
   box-sizing: border-box;
+}
+
+.select-filter {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.8rem;
 }

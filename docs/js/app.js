@@ -25,6 +25,24 @@ function nullableSelectFilterFunc(headerValue, rowValue) {
   return rowValue === headerValue;
 }
 
+// Native <select> built by hand rather than via Tabulator's built-in
+// "select" editor type -- that type was renamed to "list" in Tabulator 6,
+// so `headerFilter: "select"` silently fails to render a dropdown at all
+// on the CDN version this page loads. A custom function is not tied to
+// that naming/version churn.
+function selectHeaderFilter(valuesMap) {
+  const options = selectValuesWithNone(valuesMap);
+  return function (cell, onRendered, success) {
+    const select = document.createElement("select");
+    select.classList.add("select-filter");
+    for (const [value, label] of Object.entries(options)) {
+      select.appendChild(new Option(label, value));
+    }
+    select.addEventListener("change", () => success(select.value));
+    return select;
+  };
+}
+
 function minScoreFilterFunc(headerValue, rowValue) {
   if (headerValue === "" || headerValue === null || headerValue === undefined) return true;
   const min = Number(headerValue);
@@ -41,21 +59,26 @@ function cvssVectorTooltip(e, cell) {
 }
 
 // --- Date range header filter (from/to), shared by Date Published / Active Since ---
+// Plain text inputs, not <input type="date"> -- native date inputs render
+// their calendar/placeholder using the BROWSER's UI language (e.g. a
+// Japanese-language browser shows "年/月/日" regardless of this page's
+// lang="en"), which isn't something the page can override. Text inputs
+// with an explicit YYYY-MM-DD placeholder display identically everywhere.
 
 function dateRangeHeaderFilter(cell, onRendered, success) {
   const container = document.createElement("span");
   container.classList.add("range-filter");
 
   const from = document.createElement("input");
-  from.type = "date";
-  from.title = "From";
+  from.type = "text";
+  from.placeholder = "From (YYYY-MM-DD)";
 
   const to = document.createElement("input");
-  to.type = "date";
-  to.title = "To";
+  to.type = "text";
+  to.placeholder = "To (YYYY-MM-DD)";
 
   function emit() {
-    success({ from: from.value, to: to.value });
+    success({ from: from.value.trim(), to: to.value.trim() });
   }
   from.addEventListener("change", emit);
   to.addEventListener("change", emit);
@@ -79,12 +102,15 @@ function dateRangeEmptyCheck(value) {
 }
 
 // --- CVSS vector component parsing (AV/AC/PR/UI), computed client-side ---
+// Value vocabularies are fixed by the CVSS spec (v3.x and v4.0 both use
+// AV/AC/PR; UI's value set differs -- v3 uses N/R, v4 adds P/A -- so the
+// select for UI covers the union of both).
 
-const VECTOR_LABELS = {
-  AV: { N: "Network", A: "Adjacent", L: "Local", P: "Physical" },
-  AC: { L: "Low", H: "High" },
-  PR: { N: "None", L: "Low", H: "High" },
-  UI: { N: "None", R: "Required", P: "Passive", A: "Active" },
+const VECTOR_SELECT_VALUES = {
+  AV: { N: "N (Network)", A: "A (Adjacent)", L: "L (Local)", P: "P (Physical)" },
+  AC: { L: "L (Low)", H: "H (High)" },
+  PR: { N: "N (None)", L: "L (Low)", H: "H (High)" },
+  UI: { N: "N (None)", R: "R (Required)", P: "P (Passive)", A: "A (Active)" },
 };
 
 function parseVectorComponents(vector) {
@@ -96,19 +122,6 @@ function parseVectorComponents(vector) {
     result[part.slice(0, idx)] = part.slice(idx + 1);
   }
   return result;
-}
-
-function buildVectorSelectValues(rows, field) {
-  const seen = new Set();
-  for (const row of rows) {
-    if (row[field]) seen.add(row[field]);
-  }
-  const labels = VECTOR_LABELS[field.slice(-2).toUpperCase()] || {};
-  const values = {};
-  for (const code of Array.from(seen).sort()) {
-    values[code] = labels[code] ? `${code} (${labels[code]})` : code;
-  }
-  return selectValuesWithNone(values);
 }
 
 const columns = [
@@ -126,22 +139,19 @@ const columns = [
   },
   {
     title: "Exploitation", field: "exploitation", width: 130,
-    headerFilter: "select",
-    headerFilterParams: { values: selectValuesWithNone({ none: "none", poc: "poc", active: "active" }) },
+    headerFilter: selectHeaderFilter({ none: "none", poc: "poc", active: "active" }),
     headerFilterFunc: nullableSelectFilterFunc,
     formatter: naFormatter,
   },
   {
     title: "Automatable", field: "automatable", width: 120,
-    headerFilter: "select",
-    headerFilterParams: { values: selectValuesWithNone({ yes: "yes", no: "no" }) },
+    headerFilter: selectHeaderFilter({ yes: "yes", no: "no" }),
     headerFilterFunc: nullableSelectFilterFunc,
     formatter: naFormatter,
   },
   {
     title: "Technical Impact", field: "technical_impact", width: 150,
-    headerFilter: "select",
-    headerFilterParams: { values: selectValuesWithNone({ partial: "partial", total: "total" }) },
+    headerFilter: selectHeaderFilter({ partial: "partial", total: "total" }),
     headerFilterFunc: nullableSelectFilterFunc,
     formatter: naFormatter,
   },
@@ -152,12 +162,9 @@ const columns = [
   },
   {
     title: "Severity", field: "cvss_severity", width: 120,
-    headerFilter: "select",
-    headerFilterParams: {
-      values: selectValuesWithNone({
-        CRITICAL: "CRITICAL", HIGH: "HIGH", MEDIUM: "MEDIUM", LOW: "LOW", NONE: "NONE",
-      }),
-    },
+    headerFilter: selectHeaderFilter({
+      CRITICAL: "CRITICAL", HIGH: "HIGH", MEDIUM: "MEDIUM", LOW: "LOW", NONE: "NONE",
+    }),
     headerFilterFunc: nullableSelectFilterFunc,
     formatter: naFormatter,
   },
@@ -167,23 +174,19 @@ const columns = [
   },
   {
     title: "AV", field: "cvss_av", width: 90, formatter: naFormatter,
-    headerFilter: "select", headerFilterFunc: nullableSelectFilterFunc,
-    headerFilterParams: { values: selectValuesWithNone({}) },
+    headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.AV), headerFilterFunc: nullableSelectFilterFunc,
   },
   {
     title: "AC", field: "cvss_ac", width: 90, formatter: naFormatter,
-    headerFilter: "select", headerFilterFunc: nullableSelectFilterFunc,
-    headerFilterParams: { values: selectValuesWithNone({}) },
+    headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.AC), headerFilterFunc: nullableSelectFilterFunc,
   },
   {
     title: "PR", field: "cvss_pr", width: 90, formatter: naFormatter,
-    headerFilter: "select", headerFilterFunc: nullableSelectFilterFunc,
-    headerFilterParams: { values: selectValuesWithNone({}) },
+    headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.PR), headerFilterFunc: nullableSelectFilterFunc,
   },
   {
     title: "UI", field: "cvss_ui", width: 90, formatter: naFormatter,
-    headerFilter: "select", headerFilterFunc: nullableSelectFilterFunc,
-    headerFilterParams: { values: selectValuesWithNone({}) },
+    headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.UI), headerFilterFunc: nullableSelectFilterFunc,
   },
   { title: "Vendor", field: "vendor", headerFilter: "input", formatter: naFormatter, width: 160 },
   { title: "Product", field: "product", headerFilter: "input", formatter: naFormatter, width: 160 },
@@ -255,11 +258,7 @@ fetch("data/cves.json.gz")
       `${payload.cve_count.toLocaleString()} records / last updated: ${payload.generated_at}`;
 
     // Derive AV/AC/PR/UI from the primary CVSS vector client-side (no
-    // backend/schema change needed), then populate their select filters
-    // with only the values actually present in this dataset -- CVSS v3.x
-    // and v4.0 vectors use different value sets for some of these
-    // components (e.g. UI: N/R in v3 vs N/P/A in v4), so hardcoding one
-    // vocabulary would be wrong for the other version.
+    // backend/schema change needed).
     for (const row of payload.rows) {
       const comp = parseVectorComponents(row.cvss_vector);
       row.cvss_av = comp.AV || null;
@@ -268,13 +267,7 @@ fetch("data/cves.json.gz")
       row.cvss_ui = comp.UI || null;
     }
 
-    table.setData(payload.rows).then(() => {
-      for (const field of ["cvss_av", "cvss_ac", "cvss_pr", "cvss_ui"]) {
-        table.getColumn(field).updateDefinition({
-          headerFilterParams: { values: buildVectorSelectValues(payload.rows, field) },
-        });
-      }
-    });
+    table.setData(payload.rows);
   })
   .catch((err) => {
     document.getElementById("status").textContent = `Failed to load data: ${err.message}`;
