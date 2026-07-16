@@ -32,6 +32,12 @@ header h1 {
   gap: 0.5rem;
 }
 
+#filter-count {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin-right: auto;
+}
+
 #export-csv {
   padding: 0.4rem 0.8rem;
   font-size: 0.9rem;

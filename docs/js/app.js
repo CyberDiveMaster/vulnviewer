@@ -214,6 +214,18 @@ const table = new Tabulator("#cve-table", {
   initialSort: [{ column: "first_active_date", dir: "desc" }],
 });
 
+let totalRowCount = 0;
+const filterCountEl = document.getElementById("filter-count");
+
+// Fires on every header-filter change (and once on initial load) with the
+// full set of rows currently passing all filters -- not just the visible
+// page -- so this always matches what "Export CSV" would actually export.
+table.on("dataFiltered", (filters, rows) => {
+  filterCountEl.textContent = rows.length === totalRowCount
+    ? `${totalRowCount.toLocaleString()} rows`
+    : `${rows.length.toLocaleString()} / ${totalRowCount.toLocaleString()} rows match`;
+});
+
 // Guard rail, not a hard technical limit -- the browser can build a CSV of
 // any size. This just keeps exports to something a spreadsheet-review
 // workflow can realistically use, and forces narrowing down (rather than
@@ -270,6 +282,7 @@ fetch("data/cves.json.gz", { cache: "no-cache" })
   .then((payload) => {
     document.getElementById("status").textContent =
       `${payload.cve_count.toLocaleString()} records / last updated: ${payload.generated_at}`;
+    totalRowCount = payload.cve_count;
 
     // Derive AV/AC/PR/UI from the primary CVSS vector client-side (no
     // backend/schema change needed).
