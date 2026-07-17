@@ -493,7 +493,7 @@ fetch("data/cves.json.gz", { cache: "no-cache" })
   .then((text) => JSON.parse(text))
   .then((payload) => {
     document.getElementById("status").textContent =
-      `${payload.cve_count.toLocaleString()} records / last updated: ${payload.generated_at}`;
+      `${payload.cve_count.toLocaleString()} records / last updated: ${trimMillis(payload.generated_at)}`;
     totalRowCount = payload.cve_count;
 
     // Derive AV/AC/PR/UI from the primary CVSS vector client-side (no
