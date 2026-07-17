@@ -363,37 +363,31 @@ const columns = [
     title: "CVSS Score", field: "cvss_score", sorter: "number",
     headerFilter: "input", headerFilterFunc: minScoreFilterFunc,
     headerFilterPlaceholder: "Min score", formatter: cvssScoreFormatter,
-    headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "AV", field: "cvss_av", formatter: naFormatter,
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.AV),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
-    headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "AC", field: "cvss_ac", formatter: naFormatter,
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.AC),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
-    headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "AT", field: "cvss_at", formatter: naFormatter,
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.AT),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
-    headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "PR", field: "cvss_pr", formatter: naFormatter,
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.PR),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
-    headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "UI", field: "cvss_ui", formatter: naFormatter,
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.UI),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
-    headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "Vendor", field: "vendor", headerFilter: "input",
@@ -420,6 +414,16 @@ const table = new Tabulator("#cve-table", {
   placeholder: "No data",
   columnDefaults: { headerFilterLiveFilter: true },
   initialSort: [{ column: "first_active_date", dir: "desc" }],
+});
+
+// Native title attribute, not Tabulator's headerTooltip -- that module
+// tracks one shared popup across all columns and doesn't reliably hide it
+// when the mouse moves directly from a tooltipped header to a
+// non-tooltipped one, which would leak this text onto AV/AC/AT/PR/UI. A
+// native tooltip is scoped to this exact element by the browser itself.
+table.on("tableBuilt", () => {
+  const titleEl = table.getColumn("cvss_score").getElement().querySelector(".tabulator-col-title");
+  if (titleEl) titleEl.title = CVSS_VERSION_TOOLTIP;
 });
 
 let totalRowCount = 0;
