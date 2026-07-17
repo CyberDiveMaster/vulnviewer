@@ -91,8 +91,54 @@ header h1 {
   opacity: 1;
 }
 
-.select-filter {
+.multiselect-filter {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.multiselect-trigger {
   width: 100%;
   box-sizing: border-box;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.3rem;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.multiselect-panel {
+  /* fixed (not absolute) + position set in JS from the trigger's
+     getBoundingClientRect() -- Tabulator's header row chain
+     (.tabulator / .tabulator-header / .tabulator-header-contents /
+     .tabulator-col) all set overflow:hidden, which would clip an
+     absolutely-positioned dropdown no matter which ancestor it's
+     positioned relative to. Fixed positioning escapes that clipping. */
+  position: fixed;
+  z-index: 20;
+  background: Canvas;
+  color: CanvasText;
+  border: 1px solid #888;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  padding: 0.3rem;
+  min-width: 140px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.8rem;
+  font-weight: normal;
+  padding: 0.15rem 0.2rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.multiselect-option:hover {
+  background: rgba(128, 128, 128, 0.15);
 }

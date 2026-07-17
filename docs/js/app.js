@@ -59,33 +59,89 @@ function cveLinkFormatter(cell) {
   return `<a href="https://www.cve.org/CVERecord?id=${encodeURIComponent(v)}" target="_blank" rel="noopener">${escapeHtml(v)}</a>`;
 }
 
-function selectValuesWithNone(labels) {
-  return { "": "(All)", [NONE_SENTINEL]: "(No assessment)", ...labels };
-}
+// Checkbox-dropdown multi-select header filter (e.g. "everything except
+// active" = check poc + none + (No assessment)). Native <select multiple>
+// would technically work but requires a non-obvious ctrl/cmd-click gesture
+// to pick more than one option, so this builds a small custom popup instead.
+function multiSelectHeaderFilter(valuesMap) {
+  const options = { [NONE_SENTINEL]: "(No assessment)", ...valuesMap };
 
-function nullableSelectFilterFunc(headerValue, rowValue) {
-  if (headerValue === NONE_SENTINEL) {
-    return rowValue === null || rowValue === undefined || rowValue === "";
-  }
-  return rowValue === headerValue;
-}
-
-// Native <select> built by hand rather than via Tabulator's built-in
-// "select" editor type -- that type was renamed to "list" in Tabulator 6,
-// so `headerFilter: "select"` silently fails to render a dropdown at all
-// on the CDN version this page loads. A custom function is not tied to
-// that naming/version churn.
-function selectHeaderFilter(valuesMap) {
-  const options = selectValuesWithNone(valuesMap);
   return function (cell, onRendered, success) {
-    const select = document.createElement("select");
-    select.classList.add("select-filter");
-    for (const [value, label] of Object.entries(options)) {
-      select.appendChild(new Option(label, value));
+    const container = document.createElement("span");
+    container.classList.add("multiselect-filter");
+
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.classList.add("multiselect-trigger");
+    trigger.textContent = "(All)";
+
+    const panel = document.createElement("div");
+    panel.classList.add("multiselect-panel");
+    panel.hidden = true;
+
+    const selected = new Set();
+
+    function refreshTrigger() {
+      if (selected.size === 0) {
+        trigger.textContent = "(All)";
+        return;
+      }
+      const labels = Object.entries(options)
+        .filter(([value]) => selected.has(value))
+        .map(([, label]) => label);
+      trigger.textContent = labels.join(", ");
+      trigger.title = labels.join(", ");
     }
-    select.addEventListener("change", () => success(select.value));
-    return select;
+
+    for (const [value, label] of Object.entries(options)) {
+      const row = document.createElement("label");
+      row.classList.add("multiselect-option");
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = value;
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) {
+          selected.add(value);
+        } else {
+          selected.delete(value);
+        }
+        refreshTrigger();
+        success(selected.size ? Array.from(selected) : "");
+      });
+      row.appendChild(checkbox);
+      row.appendChild(document.createTextNode(" " + label));
+      panel.appendChild(row);
+    }
+
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (panel.hidden) {
+        // Position freshly on every open (fixed, not absolute -- see the
+        // CSS comment on .multiselect-panel for why).
+        const rect = trigger.getBoundingClientRect();
+        panel.style.top = `${rect.bottom}px`;
+        panel.style.left = `${rect.left}px`;
+      }
+      panel.hidden = !panel.hidden;
+    });
+    document.addEventListener("click", (e) => {
+      if (!container.contains(e.target)) panel.hidden = true;
+    });
+
+    container.appendChild(trigger);
+    container.appendChild(panel);
+    return container;
   };
+}
+
+function multiSelectFilterFunc(headerValue, rowValue) {
+  if (!headerValue || headerValue.length === 0) return true;
+  const normalized = rowValue === null || rowValue === undefined || rowValue === "" ? NONE_SENTINEL : rowValue;
+  return headerValue.includes(normalized);
+}
+
+function multiSelectEmptyCheck(value) {
+  return !value || value.length === 0;
 }
 
 function minScoreFilterFunc(headerValue, rowValue) {
@@ -212,20 +268,20 @@ const columns = [
   },
   {
     title: "Exploitation", field: "exploitation",
-    headerFilter: selectHeaderFilter({ none: "none", poc: "poc", active: "active" }),
-    headerFilterFunc: nullableSelectFilterFunc,
+    headerFilter: multiSelectHeaderFilter({ none: "none", poc: "poc", active: "active" }),
+    headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     formatter: naFormatter,
   },
   {
     title: "Automatable", field: "automatable",
-    headerFilter: selectHeaderFilter({ yes: "yes", no: "no" }),
-    headerFilterFunc: nullableSelectFilterFunc,
+    headerFilter: multiSelectHeaderFilter({ yes: "yes", no: "no" }),
+    headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     formatter: naFormatter,
   },
   {
     title: "Technical Impact", field: "technical_impact",
-    headerFilter: selectHeaderFilter({ partial: "partial", total: "total" }),
-    headerFilterFunc: nullableSelectFilterFunc,
+    headerFilter: multiSelectHeaderFilter({ partial: "partial", total: "total" }),
+    headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     formatter: naFormatter,
   },
   {
@@ -236,22 +292,26 @@ const columns = [
   },
   {
     title: "AV", field: "cvss_av", formatter: naFormatter,
-    headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.AV), headerFilterFunc: nullableSelectFilterFunc,
+    headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.AV),
+    headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "AC", field: "cvss_ac", formatter: naFormatter,
-    headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.AC), headerFilterFunc: nullableSelectFilterFunc,
+    headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.AC),
+    headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "PR", field: "cvss_pr", formatter: naFormatter,
-    headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.PR), headerFilterFunc: nullableSelectFilterFunc,
+    headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.PR),
+    headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "UI", field: "cvss_ui", formatter: naFormatter,
-    headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.UI), headerFilterFunc: nullableSelectFilterFunc,
+    headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.UI),
+    headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
