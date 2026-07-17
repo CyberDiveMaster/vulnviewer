@@ -116,11 +116,17 @@ function multiSelectHeaderFilter(valuesMap) {
     trigger.addEventListener("click", (e) => {
       e.stopPropagation();
       if (panel.hidden) {
-        // Position freshly on every open (fixed, not absolute -- see the
-        // CSS comment on .multiselect-panel for why).
+        // .multiselect-panel is "position: fixed", but Tabulator applies
+        // its own CSS transform to the root .tabulator element (a no-op
+        // identity matrix, but a transform nonetheless) -- per spec, ANY
+        // transform value on an ancestor makes IT the containing block for
+        // fixed-position descendants instead of the viewport. So position
+        // relative to that element's rect, not the raw viewport-relative
+        // getBoundingClientRect() values.
+        const tableRect = document.querySelector(".tabulator").getBoundingClientRect();
         const rect = trigger.getBoundingClientRect();
-        panel.style.top = `${rect.bottom}px`;
-        panel.style.left = `${rect.left}px`;
+        panel.style.top = `${rect.bottom - tableRect.top}px`;
+        panel.style.left = `${rect.left - tableRect.left}px`;
       }
       panel.hidden = !panel.hidden;
     });
