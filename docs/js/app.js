@@ -50,19 +50,6 @@ function cvssScoreFormatter(cell) {
   return withVersionHint(cell, escapeHtml(v));
 }
 
-// UI (User Interaction) is the one component whose value SET differs by
-// CVSS version, not just its meaning -- v3.x only has N/R, v4.0 adds P/A.
-// Seeing a bare "R" or "P" without knowing which version it came from is
-// ambiguous, unlike AV/AC/PR (same value vocabulary across versions) or AT
-// (v4.0-only, so its mere presence already implies the version).
-function uiFormatter(cell) {
-  const v = cell.getValue();
-  if (v === null || v === undefined || v === "") {
-    return '<span class="na-cell">N/A</span>';
-  }
-  return withVersionHint(cell, escapeHtml(v));
-}
-
 // Strips the sub-second fraction from an ISO timestamp (e.g.
 // "2023-08-29T19:38:55.399Z" -> "2023-08-29T19:38:55Z") -- the millisecond
 // precision comes straight from Vulnrichment's own timestamps and just adds
@@ -108,6 +95,16 @@ document.addEventListener("click", (e) => {
   }
 });
 
+// Option labels are static strings we write ourselves (not external data),
+// so they may contain simple markup (e.g. a faint version hint span) --
+// rendered via innerHTML in the panel. The trigger button's summary text
+// must stay plain, so it strips any markup back out here.
+function stripHtml(html) {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  return tmp.textContent;
+}
+
 // Checkbox-dropdown multi-select header filter (e.g. "everything except
 // active" = check poc + none + (No assessment)). Native <select multiple>
 // would technically work but requires a non-obvious ctrl/cmd-click gesture
@@ -138,7 +135,7 @@ function multiSelectHeaderFilter(valuesMap) {
       }
       const labels = Object.entries(options)
         .filter(([value]) => selected.has(value))
-        .map(([, label]) => label);
+        .map(([, label]) => stripHtml(label));
       trigger.textContent = labels.join(", ");
       trigger.title = labels.join(", ");
     }
@@ -158,8 +155,10 @@ function multiSelectHeaderFilter(valuesMap) {
         refreshTrigger();
         success(selected.size ? Array.from(selected) : "");
       });
+      const labelSpan = document.createElement("span");
+      labelSpan.innerHTML = " " + label;
       row.appendChild(checkbox);
-      row.appendChild(document.createTextNode(" " + label));
+      row.appendChild(labelSpan);
       panel.appendChild(row);
     }
 
@@ -300,7 +299,14 @@ const VECTOR_SELECT_VALUES = {
   // whose primary vector is v3.x or earlier.
   AT: { N: "N (None)", P: "P (Present)" },
   PR: { N: "N (None)", L: "L (Low)", H: "H (High)" },
-  UI: { N: "N (None)", R: "R (Required)", P: "P (Passive)", A: "A (Active)" },
+  // R only exists in CVSS v3.x; P/A only exist in v4.0 -- N is the only
+  // value common to both, so it's the only one left without a version hint.
+  UI: {
+    N: "N (None)",
+    R: 'R (Required) <span class="cvss-version-hint">v3.x</span>',
+    P: 'P (Passive) <span class="cvss-version-hint">v4.0</span>',
+    A: 'A (Active) <span class="cvss-version-hint">v4.0</span>',
+  },
 };
 
 function parseVectorComponents(vector) {
@@ -381,7 +387,7 @@ const columns = [
     headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
-    title: "UI", field: "cvss_ui", formatter: uiFormatter,
+    title: "UI", field: "cvss_ui", formatter: naFormatter,
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.UI),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     headerTooltip: CVSS_VERSION_TOOLTIP,
