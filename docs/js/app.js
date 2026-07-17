@@ -56,7 +56,17 @@ function dateFormatter(cell) {
 function cveLinkFormatter(cell) {
   const v = cell.getValue();
   if (!v) return "";
-  return `<a href="https://www.cve.org/CVERecord?id=${encodeURIComponent(v)}" target="_blank" rel="noopener">${escapeHtml(v)}</a>`;
+  const cveOrgLink =
+    `<a href="https://www.cve.org/CVERecord?id=${encodeURIComponent(v)}" target="_blank" rel="noopener">${escapeHtml(v)}</a>`;
+
+  // raw_file_path (e.g. "2026/46xxx/CVE-2026-46817.json") comes from our
+  // own ingestion, following the fixed CVE_PATH_RE shape, not arbitrary
+  // external text -- safe to splice into a URL path without encoding.
+  const rawPath = cell.getRow().getData().raw_file_path;
+  if (!rawPath) return cveOrgLink;
+  const vulnrichmentUrl = `https://github.com/cisagov/vulnrichment/blob/develop/${rawPath}`;
+  return `${cveOrgLink} <a href="${vulnrichmentUrl}" target="_blank" rel="noopener" ` +
+    `class="vulnrichment-link" title="View raw Vulnrichment JSON">📄</a>`;
 }
 
 // All multiselect panels across every column share this registry so that

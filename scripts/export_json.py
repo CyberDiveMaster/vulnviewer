@@ -86,6 +86,7 @@ def build_rows(conn):
             "days_none_to_active": cve["days_none_to_active"],
             "days_poc_to_active": cve["days_poc_to_active"],
             "days_publish_to_active": cve["days_publish_to_active"],
+            "raw_file_path": cve["raw_file_path"],
         })
 
     return rows
