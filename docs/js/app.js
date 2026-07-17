@@ -165,6 +165,10 @@ function dateRangeEmptyCheck(value) {
   return !value || (!value.from && !value.to);
 }
 
+const CVSS_VERSION_TOOLTIP =
+  "Shows the highest CVSS version available for that CVE (v4.0 > v3.1 > v3.0 > v2.0). " +
+  "When both are provided at the same version, the CNA (reporting vendor) value is used over ADP (CISA).";
+
 // --- CVSS vector component parsing (AV/AC/PR/UI), computed client-side ---
 // Value vocabularies are fixed by the CVSS spec (v3.x and v4.0 both use
 // AV/AC/PR; UI's value set differs -- v3 uses N/R, v4 adds P/A -- so the
@@ -228,22 +232,27 @@ const columns = [
     title: "CVSS Score", field: "cvss_score", sorter: "number",
     headerFilter: "input", headerFilterFunc: minScoreFilterFunc,
     headerFilterPlaceholder: "Min score", formatter: naFormatter,
+    headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "AV", field: "cvss_av", formatter: naFormatter,
     headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.AV), headerFilterFunc: nullableSelectFilterFunc,
+    headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "AC", field: "cvss_ac", formatter: naFormatter,
     headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.AC), headerFilterFunc: nullableSelectFilterFunc,
+    headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "PR", field: "cvss_pr", formatter: naFormatter,
     headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.PR), headerFilterFunc: nullableSelectFilterFunc,
+    headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "UI", field: "cvss_ui", formatter: naFormatter,
     headerFilter: selectHeaderFilter(VECTOR_SELECT_VALUES.UI), headerFilterFunc: nullableSelectFilterFunc,
+    headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
     title: "Vendor", field: "vendor", headerFilter: "input",
