@@ -37,14 +37,30 @@ function fullValueTooltip(e, cell) {
   return cell.getValue() || "";
 }
 
+function withVersionHint(cell, formattedValue) {
+  const version = cell.getRow().getData().cvss_version;
+  return version ? `${formattedValue} <span class="cvss-version-hint">v${escapeHtml(version)}</span>` : formattedValue;
+}
+
 function cvssScoreFormatter(cell) {
   const v = cell.getValue();
   if (v === null || v === undefined || v === "") {
     return '<span class="na-cell">N/A</span>';
   }
-  const version = cell.getRow().getData().cvss_version;
-  const versionHint = version ? ` <span class="cvss-version-hint">v${escapeHtml(version)}</span>` : "";
-  return `${escapeHtml(v)}${versionHint}`;
+  return withVersionHint(cell, escapeHtml(v));
+}
+
+// UI (User Interaction) is the one component whose value SET differs by
+// CVSS version, not just its meaning -- v3.x only has N/R, v4.0 adds P/A.
+// Seeing a bare "R" or "P" without knowing which version it came from is
+// ambiguous, unlike AV/AC/PR (same value vocabulary across versions) or AT
+// (v4.0-only, so its mere presence already implies the version).
+function uiFormatter(cell) {
+  const v = cell.getValue();
+  if (v === null || v === undefined || v === "") {
+    return '<span class="na-cell">N/A</span>';
+  }
+  return withVersionHint(cell, escapeHtml(v));
 }
 
 // Strips the sub-second fraction from an ISO timestamp (e.g.
@@ -365,7 +381,7 @@ const columns = [
     headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
-    title: "UI", field: "cvss_ui", formatter: naFormatter,
+    title: "UI", field: "cvss_ui", formatter: uiFormatter,
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.UI),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     headerTooltip: CVSS_VERSION_TOOLTIP,
