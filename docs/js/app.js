@@ -59,6 +59,19 @@ function cveLinkFormatter(cell) {
   return `<a href="https://www.cve.org/CVERecord?id=${encodeURIComponent(v)}" target="_blank" rel="noopener">${escapeHtml(v)}</a>`;
 }
 
+// All multiselect panels across every column share this registry so that
+// opening one can close the others -- each column's own click handler
+// stops propagation (see below), so without this a document-level "click
+// outside" listener registered per-column would never see clicks on a
+// DIFFERENT column's trigger and would leave its own panel stuck open.
+const multiSelectPanels = [];
+
+document.addEventListener("click", (e) => {
+  for (const { container, panel } of multiSelectPanels) {
+    if (!container.contains(e.target)) panel.hidden = true;
+  }
+});
+
 // Checkbox-dropdown multi-select header filter (e.g. "everything except
 // active" = check poc + none + (No assessment)). Native <select multiple>
 // would technically work but requires a non-obvious ctrl/cmd-click gesture
@@ -78,6 +91,7 @@ function multiSelectHeaderFilter(valuesMap) {
     const panel = document.createElement("div");
     panel.classList.add("multiselect-panel");
     panel.hidden = true;
+    multiSelectPanels.push({ container, panel });
 
     const selected = new Set();
 
@@ -115,7 +129,16 @@ function multiSelectHeaderFilter(valuesMap) {
 
     trigger.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (panel.hidden) {
+      const opening = panel.hidden;
+
+      // Close every other column's panel -- stopPropagation above means
+      // the shared document click listener never sees this click, so each
+      // trigger has to close its siblings itself.
+      for (const other of multiSelectPanels) {
+        if (other.panel !== panel) other.panel.hidden = true;
+      }
+
+      if (opening) {
         // .multiselect-panel is "position: fixed", but Tabulator applies
         // its own CSS transform to the root .tabulator element (a no-op
         // identity matrix, but a transform nonetheless) -- per spec, ANY
@@ -128,10 +151,7 @@ function multiSelectHeaderFilter(valuesMap) {
         panel.style.top = `${rect.bottom - tableRect.top}px`;
         panel.style.left = `${rect.left - tableRect.left}px`;
       }
-      panel.hidden = !panel.hidden;
-    });
-    document.addEventListener("click", (e) => {
-      if (!container.contains(e.target)) panel.hidden = true;
+      panel.hidden = !opening;
     });
 
     container.appendChild(trigger);
