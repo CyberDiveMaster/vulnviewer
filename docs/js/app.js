@@ -297,7 +297,10 @@ const VECTOR_SELECT_VALUES = {
   // AT (Attack Requirements) is a CVSS v4.0-only metric -- v3.x vectors
   // have no AT component at all, so it's N/A (not just absent) for any CVE
   // whose primary vector is v3.x or earlier.
-  AT: { N: "N (None)", P: "P (Present)" },
+  AT: {
+    N: 'N (None) <span class="cvss-version-hint">v4.0</span>',
+    P: 'P (Present) <span class="cvss-version-hint">v4.0</span>',
+  },
   PR: { N: "N (None)", L: "L (Low)", H: "H (High)" },
   // R only exists in CVSS v3.x; P/A only exist in v4.0 -- N is the only
   // value common to both, so it's the only one left without a version hint.
