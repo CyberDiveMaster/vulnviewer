@@ -37,6 +37,16 @@ function fullValueTooltip(e, cell) {
   return cell.getValue() || "";
 }
 
+function cvssScoreFormatter(cell) {
+  const v = cell.getValue();
+  if (v === null || v === undefined || v === "") {
+    return '<span class="na-cell">N/A</span>';
+  }
+  const version = cell.getRow().getData().cvss_version;
+  const versionHint = version ? ` <span class="cvss-version-hint">v${escapeHtml(version)}</span>` : "";
+  return `${escapeHtml(v)}${versionHint}`;
+}
+
 // Strips the sub-second fraction from an ISO timestamp (e.g.
 // "2023-08-29T19:38:55.399Z" -> "2023-08-29T19:38:55Z") -- the millisecond
 // precision comes straight from Vulnrichment's own timestamps and just adds
@@ -269,6 +279,10 @@ const CVSS_VERSION_TOOLTIP =
 const VECTOR_SELECT_VALUES = {
   AV: { N: "N (Network)", A: "A (Adjacent)", L: "L (Local)", P: "P (Physical)" },
   AC: { L: "L (Low)", H: "H (High)" },
+  // AT (Attack Requirements) is a CVSS v4.0-only metric -- v3.x vectors
+  // have no AT component at all, so it's N/A (not just absent) for any CVE
+  // whose primary vector is v3.x or earlier.
+  AT: { N: "N (None)", P: "P (Present)" },
   PR: { N: "N (None)", L: "L (Low)", H: "H (High)" },
   UI: { N: "N (None)", R: "R (Required)", P: "P (Passive)", A: "A (Active)" },
 };
@@ -323,7 +337,7 @@ const columns = [
   {
     title: "CVSS Score", field: "cvss_score", sorter: "number",
     headerFilter: "input", headerFilterFunc: minScoreFilterFunc,
-    headerFilterPlaceholder: "Min score", formatter: naFormatter,
+    headerFilterPlaceholder: "Min score", formatter: cvssScoreFormatter,
     headerTooltip: CVSS_VERSION_TOOLTIP,
   },
   {
@@ -335,6 +349,12 @@ const columns = [
   {
     title: "AC", field: "cvss_ac", formatter: naFormatter,
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.AC),
+    headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
+    headerTooltip: CVSS_VERSION_TOOLTIP,
+  },
+  {
+    title: "AT", field: "cvss_at", formatter: naFormatter,
+    headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.AT),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     headerTooltip: CVSS_VERSION_TOOLTIP,
   },
@@ -453,6 +473,7 @@ fetch("data/cves.json.gz", { cache: "no-cache" })
       const comp = parseVectorComponents(row.cvss_vector);
       row.cvss_av = comp.AV || null;
       row.cvss_ac = comp.AC || null;
+      row.cvss_at = comp.AT || null;
       row.cvss_pr = comp.PR || null;
       row.cvss_ui = comp.UI || null;
     }

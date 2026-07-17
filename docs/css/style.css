@@ -71,6 +71,11 @@ header h1 {
   opacity: 1;
 }
 
+.cvss-version-hint {
+  opacity: 0.5;
+  font-size: 0.8em;
+}
+
 .range-filter {
   display: flex;
   gap: 0.15rem;
