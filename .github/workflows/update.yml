@@ -2,7 +2,12 @@ name: Update Vulnrichment data
 
 on:
   schedule:
-    - cron: "0 0,12 * * *"
+    # Every 2 hours -- trial period to watch repo history growth (each
+    # data-changing run adds ~10MB of gzip to git history, since gzip output
+    # doesn't diff-compress well between versions). Revisit based on how
+    # fast https://api.github.com/repos/CyberDiveMaster/vulnviewer's `size`
+    # field grows over the next few weeks.
+    - cron: "0 */2 * * *"
   workflow_dispatch: {}
 
 concurrency:
