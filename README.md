@@ -18,8 +18,12 @@ Vendor / Product / CWE でフィルタ・ソートでき、SSVC Exploitationが
    Vulnrichmentリポジトリの全git履歴をマイニングし、Exploitation値の
    遷移履歴と現在のCVEスナップショットをローカルの `data/vulnviewer.db`
    （SQLite、Gitには含めない）に構築する。
-2. **`.github/workflows/update.yml`**（2時間おき、GitHub Actionsが自動実行。
-   ※試験運用中。リポジトリ履歴サイズの増加ペースを見ながら頻度を見直す予定）
+2. **`.github/workflows/update.yml`**（10分おき、GitHub Actionsが自動実行）
+   まず`scripts/check_remote_head.py`でVulnrichment側の最新コミットSHAを
+   GitHub API経由で軽量チェック（クローン不要）し、変化がなければ即終了。
+   変化がある場合のみ、以下の重い処理（クローン取得・差分マイニング・
+   コミット）を実行する。
+   ※試験運用中。リポジトリ履歴サイズの増加ペースを見ながら頻度を見直す予定
    `data/vulnviewer.db` と Vulnrichmentのクローンを Actions キャッシュから
    復元 → `scripts/update_incremental.py` で新規コミットのみ差分反映 →
    `scripts/export_json.py` でgzip圧縮した `docs/data/cves.json.gz` を再生成
@@ -58,7 +62,7 @@ Vendor / Product / CWE でフィルタ・ソートでき、SSVC Exploitationが
    Actionsキャッシュがまだ存在しないため、Actions環境内で改めて
    Vulnrichmentの全履歴マイニングが走る（ローカルのDBはActionsには
    引き継がれない設計のため）。正常に完走してpushされることを確認してから、
-   以降はスケジュール実行（2時間おき、試験運用中）に任せる。
+   以降はスケジュール実行（10分おき、試験運用中）に任せる。
 
 ## 制限事項
 

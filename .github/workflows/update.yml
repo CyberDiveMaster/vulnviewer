@@ -2,12 +2,13 @@ name: Update Vulnrichment data
 
 on:
   schedule:
-    # Every 2 hours -- trial period to watch repo history growth (each
-    # data-changing run adds ~10MB of gzip to git history, since gzip output
-    # doesn't diff-compress well between versions). Revisit based on how
-    # fast https://api.github.com/repos/CyberDiveMaster/vulnviewer's `size`
-    # field grows over the next few weeks.
-    - cron: "0 */2 * * *"
+    # Every 10 minutes. Cheap because most runs hit the "check" step below
+    # and exit immediately -- the expensive clone-restore/mine/export/commit
+    # steps only run on the (much rarer) polls where upstream actually
+    # changed. Trial period: watch how fast
+    # https://api.github.com/repos/CyberDiveMaster/vulnviewer's `size` field
+    # grows and revisit if needed.
+    - cron: "*/10 * * * *"
   workflow_dispatch: {}
 
 concurrency:
@@ -32,6 +33,27 @@ jobs:
       - name: Install dependencies
         run: pip install -r scripts/requirements.txt
 
+      # Needed to read last_processed_sha for the cheap check below. Cache
+      # restore itself is fast (no git operations involved), unlike
+      # restoring/fetching the ~300MB vulnrichment clone.
+      - name: Restore vulnviewer DB cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/vulnviewer.db
+          key: vulnviewer-db-${{ github.run_id }}
+          restore-keys: |
+            vulnviewer-db-
+
+      # Single GitHub API call comparing upstream's current HEAD sha against
+      # our last_processed_sha -- no clone, no fetch. This is what makes a
+      # 10-minute schedule cheap: everything below only runs when this
+      # says something actually changed.
+      - name: Check for new upstream commits
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/check_remote_head.py
+
       # Both caches below use a run_id-suffixed key + prefix restore-keys,
       # with an explicit restore/save split (not the bundled actions/cache
       # action). actions/cache only auto-saves at the end of a job when the
@@ -41,6 +63,7 @@ jobs:
       # guarantees a "miss" (thus a save) every run, while restore-keys still
       # finds the most recent prior snapshot to restore from.
       - name: Restore vulnrichment clone cache
+        if: steps.check.outputs.changed == 'true'
         uses: actions/cache/restore@v4
         with:
           path: vendor_repo_cache/vulnrichment
@@ -48,27 +71,16 @@ jobs:
           restore-keys: |
             vulnrichment-clone-
 
-      # data/vulnviewer.db (~180MB+ and growing) is NEVER committed to git --
-      # it exceeds GitHub's 100MB per-file push limit. It persists only as
-      # an Actions cache entry. If this cache is ever missing/evicted,
-      # update_incremental.py detects the missing baseline and automatically
-      # re-mines the full history itself (slower that one run, but no manual
-      # intervention needed).
-      - name: Restore vulnviewer DB cache
-        uses: actions/cache/restore@v4
-        with:
-          path: data/vulnviewer.db
-          key: vulnviewer-db-${{ github.run_id }}
-          restore-keys: |
-            vulnviewer-db-
-
       - name: Run incremental update
+        if: steps.check.outputs.changed == 'true'
         run: python scripts/update_incremental.py
 
       - name: Export static JSON (gzip-compressed)
+        if: steps.check.outputs.changed == 'true'
         run: python scripts/export_json.py
 
       - name: Commit and push if changed
+        if: steps.check.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -80,15 +92,21 @@ jobs:
             git push
           fi
 
+      # data/vulnviewer.db (~180MB+ and growing) is NEVER committed to git --
+      # it exceeds GitHub's 100MB per-file push limit. It persists only as
+      # an Actions cache entry. If this cache is ever missing/evicted,
+      # update_incremental.py detects the missing baseline and automatically
+      # re-mines the full history itself (slower that one run, but no manual
+      # intervention needed).
       - name: Save vulnrichment clone cache
-        if: always()
+        if: steps.check.outputs.changed == 'true'
         uses: actions/cache/save@v4
         with:
           path: vendor_repo_cache/vulnrichment
           key: vulnrichment-clone-${{ github.run_id }}
 
       - name: Save vulnviewer DB cache
-        if: always()
+        if: steps.check.outputs.changed == 'true'
         uses: actions/cache/save@v4
         with:
           path: data/vulnviewer.db
