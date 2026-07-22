@@ -24,12 +24,7 @@ def parse_cve_json(data, raw_file_path=None):
         if vendor or product:
             vendor_products.append((vendor, product))
 
-    cwes = []
-    for problem_type in cna.get("problemTypes", []) or []:
-        for desc in problem_type.get("descriptions", []) or []:
-            cwe_id = desc.get("cweId")
-            if cwe_id:
-                cwes.append((cwe_id, desc.get("description")))
+    cwes = _extract_cwes(cna.get("problemTypes", []) or [])
 
     cvss_list = []
     cvss_list.extend(_extract_cvss(cna.get("metrics", []) or [], source="cna"))
@@ -39,6 +34,14 @@ def parse_cve_json(data, raw_file_path=None):
 
     adp_list = containers.get("adp", []) or []
     for adp in adp_list:
+        # CNA-supplied problemTypes sometimes carry a CWE only as free-text
+        # (description "CWE-436 ...") with no cweId field set at all -- CISA's
+        # ADP entry then fills in the missing cweId on what's otherwise the
+        # same description. Merge both sources, deduping by cweId, so the
+        # CNA's own omission doesn't silently drop the CWE.
+        for cwe_id, description in _extract_cwes(adp.get("problemTypes", []) or []):
+            if cwe_id not in {c for c, _ in cwes}:
+                cwes.append((cwe_id, description))
         cvss_list.extend(_extract_cvss(adp.get("metrics", []) or [], source="adp"))
         for metric in adp.get("metrics", []) or []:
             other = metric.get("other")
@@ -107,6 +110,16 @@ def extract_cve_id(data, raw_file_path=None):
         if match:
             return match.group(1)
     return None
+
+
+def _extract_cwes(problem_types):
+    result = []
+    for problem_type in problem_types:
+        for desc in problem_type.get("descriptions", []) or []:
+            cwe_id = desc.get("cweId")
+            if cwe_id:
+                result.append((cwe_id, desc.get("description")))
+    return result
 
 
 def _extract_cvss(metrics, source):
