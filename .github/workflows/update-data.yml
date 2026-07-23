@@ -9,7 +9,19 @@ on:
     # https://api.github.com/repos/CyberDiveMaster/vulnviewer's `size` field
     # grows and revisit if needed.
     - cron: "*/10 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      full_reingest:
+        description: >-
+          Re-parse EVERY CVE with the current parser, not just files touched
+          by new commits. Use after fixing a cve_parser.py bug so Actions'
+          own cached DB (separate from any local machine's DB) picks up the
+          retroactive correction too -- update_incremental.py only re-parses
+          touched files, so a fix never reaches CVEs upstream hasn't changed
+          since. Slower (processes the full ~160k+ files); leave off for
+          normal runs.
+        type: boolean
+        default: false
 
 concurrency:
   group: vulnviewer-update
@@ -46,8 +58,8 @@ jobs:
 
       # Single GitHub API call comparing upstream's current HEAD sha against
       # our last_processed_sha -- no clone, no fetch. This is what makes a
-      # 10-minute schedule cheap: everything below only runs when this
-      # says something actually changed.
+      # 10-minute schedule cheap: everything below only runs when this says
+      # something actually changed (or a full_reingest was requested).
       - name: Check for new upstream commits
         id: check
         env:
@@ -63,7 +75,7 @@ jobs:
       # guarantees a "miss" (thus a save) every run, while restore-keys still
       # finds the most recent prior snapshot to restore from.
       - name: Restore vulnrichment clone cache
-        if: steps.check.outputs.changed == 'true'
+        if: steps.check.outputs.changed == 'true' || github.event.inputs.full_reingest == 'true'
         uses: actions/cache/restore@v4
         with:
           path: vendor_repo_cache/vulnrichment
@@ -75,12 +87,16 @@ jobs:
         if: steps.check.outputs.changed == 'true'
         run: python scripts/update_incremental.py
 
+      - name: Full re-ingest (retroactive parser-fix pass)
+        if: github.event.inputs.full_reingest == 'true'
+        run: python scripts/reingest_all.py
+
       - name: Export static JSON (gzip-compressed)
-        if: steps.check.outputs.changed == 'true'
+        if: steps.check.outputs.changed == 'true' || github.event.inputs.full_reingest == 'true'
         run: python scripts/export_json.py
 
       - name: Commit and push if changed
-        if: steps.check.outputs.changed == 'true'
+        if: steps.check.outputs.changed == 'true' || github.event.inputs.full_reingest == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -99,14 +115,14 @@ jobs:
       # re-mines the full history itself (slower that one run, but no manual
       # intervention needed).
       - name: Save vulnrichment clone cache
-        if: steps.check.outputs.changed == 'true'
+        if: steps.check.outputs.changed == 'true' || github.event.inputs.full_reingest == 'true'
         uses: actions/cache/save@v4
         with:
           path: vendor_repo_cache/vulnrichment
           key: vulnrichment-clone-${{ github.run_id }}
 
       - name: Save vulnviewer DB cache
-        if: steps.check.outputs.changed == 'true'
+        if: steps.check.outputs.changed == 'true' || github.event.inputs.full_reingest == 'true'
         uses: actions/cache/save@v4
         with:
           path: data/vulnviewer.db
