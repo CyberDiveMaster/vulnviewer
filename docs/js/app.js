@@ -80,6 +80,31 @@ function activeSinceFormatter(cell) {
   return dateFormatter(cell);
 }
 
+// Sorting by the raw first_active_date would place currently-inactive rows
+// (displayed as N/A) in the middle of the sorted list, using a date value
+// the user can no longer see -- confusing. Treat those rows as "empty" too,
+// and pin them to the end regardless of asc/desc, mirroring Tabulator's own
+// alignEmptyValues:"bottom" convention (see the built-in string/number
+// sorters, which flip only when dir === "asc" for a "bottom" alignment).
+function activeSinceSorter(a, b, aRow, bRow, column, dir) {
+  const aEmpty = aRow.getData().exploitation !== "active" || !a;
+  const bEmpty = bRow.getData().exploitation !== "active" || !b;
+  let emptyAlign = 0;
+
+  if (aEmpty) {
+    emptyAlign = bEmpty ? 0 : -1;
+  } else if (bEmpty) {
+    emptyAlign = 1;
+  } else {
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+
+  if (dir === "asc") {
+    emptyAlign *= -1;
+  }
+  return emptyAlign;
+}
+
 function exploitationFormatter(cell) {
   const v = cell.getValue();
   if (v === null || v === undefined || v === "") {
@@ -365,7 +390,7 @@ const columns = [
     formatter: dateFormatter,
   },
   {
-    title: "Active Since", field: "first_active_date", sorter: "string",
+    title: "Active Since", field: "first_active_date", sorter: activeSinceSorter,
     headerFilter: dateRangeHeaderFilter, headerFilterFunc: dateRangeFilterFunc,
     headerFilterEmptyCheck: dateRangeEmptyCheck, headerFilterLiveFilter: false,
     formatter: activeSinceFormatter,
