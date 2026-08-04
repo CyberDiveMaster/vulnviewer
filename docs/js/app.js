@@ -72,10 +72,17 @@ function exploitationFormatter(cell) {
     return '<span class="na-cell">N/A</span>';
   }
   const text = escapeHtml(v);
-  const kevUrl = cell.getRow().getData().kev_reference;
-  if (v !== "active" || !kevUrl) return text;
-  return `${text} <a href="${escapeHtml(kevUrl)}" target="_blank" rel="noopener" ` +
-    `class="vulnrichment-link" title="View in CISA KEV catalog">&#x1F6A8;</a>`;
+  if (v !== "active") return text;
+  // Built directly from the CVE ID rather than trusting Vulnrichment's own
+  // kev_reference field -- that field only gets populated once Vulnrichment
+  // cross-references the KEV catalog itself, which can lag behind (a CVE
+  // can be genuinely KEV-listed for days before Vulnrichment reflects it).
+  // CISA's catalog page takes the CVE ID as a query filter directly, so this
+  // link is accurate at click-time regardless of Vulnrichment's own lag.
+  const cveId = cell.getRow().getData().cve_id;
+  const kevUrl = `https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=${encodeURIComponent(cveId)}`;
+  return `${text} <a href="${kevUrl}" target="_blank" rel="noopener" ` +
+    `class="vulnrichment-link" title="Check CISA KEV catalog for this CVE">&#x1F6A8;</a>`;
 }
 
 function cveLinkFormatter(cell) {
