@@ -336,6 +336,18 @@ function dateRangeFilterFunc(headerValue, rowValue) {
   return true;
 }
 
+// Active Since displays N/A for any CVE that isn't CURRENTLY active (see
+// activeSinceFormatter/activeSinceSorter above) even though the underlying
+// first_active_date is still the true historical value. Filtering by that
+// hidden value would let currently-inactive rows show up inside a date
+// range the user can't actually see them in, so a range filter here should
+// only match rows that are still displaying a real date.
+function activeSinceFilterFunc(headerValue, rowValue, rowData) {
+  if (!headerValue || (!headerValue.from && !headerValue.to)) return true;
+  if (rowData.exploitation !== "active") return false;
+  return dateRangeFilterFunc(headerValue, rowValue);
+}
+
 function dateRangeEmptyCheck(value) {
   return !value || (!value.from && !value.to);
 }
@@ -391,7 +403,7 @@ const columns = [
   },
   {
     title: "Active Since", field: "first_active_date", sorter: activeSinceSorter,
-    headerFilter: dateRangeHeaderFilter, headerFilterFunc: dateRangeFilterFunc,
+    headerFilter: dateRangeHeaderFilter, headerFilterFunc: activeSinceFilterFunc,
     headerFilterEmptyCheck: dateRangeEmptyCheck, headerFilterLiveFilter: false,
     formatter: activeSinceFormatter,
   },
