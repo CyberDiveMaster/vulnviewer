@@ -66,6 +66,18 @@ function dateFormatter(cell) {
   return trimMillis(v);
 }
 
+function exploitationFormatter(cell) {
+  const v = cell.getValue();
+  if (v === null || v === undefined || v === "") {
+    return '<span class="na-cell">N/A</span>';
+  }
+  const text = escapeHtml(v);
+  const kevUrl = cell.getRow().getData().kev_reference;
+  if (v !== "active" || !kevUrl) return text;
+  return `${text} <a href="${escapeHtml(kevUrl)}" target="_blank" rel="noopener" ` +
+    `class="vulnrichment-link" title="View in CISA KEV catalog">&#x1F6A8;</a>`;
+}
+
 function cveLinkFormatter(cell) {
   const v = cell.getValue();
   if (!v) return "";
@@ -345,7 +357,7 @@ const columns = [
     title: "Exploitation", field: "exploitation",
     headerFilter: multiSelectHeaderFilter({ none: "none", poc: "poc", active: "active" }),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
-    formatter: naFormatter,
+    formatter: exploitationFormatter,
   },
   {
     title: "Automatable", field: "automatable",
