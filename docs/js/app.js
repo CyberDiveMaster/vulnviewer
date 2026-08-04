@@ -66,6 +66,20 @@ function dateFormatter(cell) {
   return trimMillis(v);
 }
 
+// first_active_date is a historical milestone (first time Exploitation was
+// EVER observed as "active") and stays set even if a later re-assessment
+// walks the value back down to "poc"/"none" -- CISA does sometimes revise
+// an active call. Only display it while the CVE's CURRENT status is still
+// "active"; the underlying data/CSV export still carries the true
+// historical date for anyone who wants it.
+function activeSinceFormatter(cell) {
+  const row = cell.getRow().getData();
+  if (row.exploitation !== "active") {
+    return '<span class="na-cell">N/A</span>';
+  }
+  return dateFormatter(cell);
+}
+
 function exploitationFormatter(cell) {
   const v = cell.getValue();
   if (v === null || v === undefined || v === "") {
@@ -354,7 +368,7 @@ const columns = [
     title: "Active Since", field: "first_active_date", sorter: "string",
     headerFilter: dateRangeHeaderFilter, headerFilterFunc: dateRangeFilterFunc,
     headerFilterEmptyCheck: dateRangeEmptyCheck, headerFilterLiveFilter: false,
-    formatter: dateFormatter,
+    formatter: activeSinceFormatter,
   },
   {
     title: "Days", field: "days_publish_to_active", sorter: "number",
