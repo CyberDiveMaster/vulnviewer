@@ -397,6 +397,7 @@ const columns = [
   { title: "CVE ID", field: "cve_id", headerFilter: "input", formatter: cveLinkFormatter, frozen: true },
   {
     title: "Date Published", field: "date_published", sorter: "string",
+    sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: dateRangeHeaderFilter, headerFilterFunc: dateRangeFilterFunc,
     headerFilterEmptyCheck: dateRangeEmptyCheck, headerFilterLiveFilter: false,
     formatter: dateFormatter,
@@ -409,70 +410,84 @@ const columns = [
   },
   {
     title: "Days", field: "days_publish_to_active", sorter: "number",
+    sorterParams: { alignEmptyValues: "bottom" },
     formatter: naFormatter,
   },
   {
     title: "Exploitation", field: "exploitation",
+    sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: multiSelectHeaderFilter({ none: "none", poc: "poc", active: "active" }),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     formatter: exploitationFormatter,
   },
   {
     title: "Automatable", field: "automatable",
+    sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: multiSelectHeaderFilter({ yes: "yes", no: "no" }),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     formatter: naFormatter,
   },
   {
     title: "Technical Impact", field: "technical_impact",
+    sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: multiSelectHeaderFilter({ partial: "partial", total: "total" }),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     formatter: naFormatter,
   },
   {
     title: "CVSS Score", field: "cvss_score", sorter: "number",
+    sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: "input", headerFilterFunc: minScoreFilterFunc,
     headerFilterPlaceholder: "Min score", formatter: cvssScoreFormatter,
   },
   {
     title: "AV", field: "cvss_av", formatter: naFormatter,
+    sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.AV),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
   },
   {
     title: "AC", field: "cvss_ac", formatter: naFormatter,
+    sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.AC),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
   },
   {
     title: "AT", field: "cvss_at", formatter: naFormatter,
+    sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.AT),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
   },
   {
     title: "PR", field: "cvss_pr", formatter: naFormatter,
+    sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.PR),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
   },
   {
     title: "UI", field: "cvss_ui", formatter: naFormatter,
+    sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: multiSelectHeaderFilter(VECTOR_SELECT_VALUES.UI),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
   },
   {
     title: "Vendor", field: "vendor", headerFilter: "input",
+    sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     formatter: truncateFormatter(50), tooltip: fullValueTooltip,
   },
   {
     title: "Product", field: "product", headerFilter: "input",
+    sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     formatter: truncateFormatter(50), tooltip: fullValueTooltip,
   },
   {
     title: "CWE", field: "cwe", headerFilter: "input",
+    sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     formatter: truncateFormatter(50), tooltip: fullValueTooltip,
   },
   {
     title: "Last Updated", field: "date_updated", sorter: "string",
+    sorterParams: { alignEmptyValues: "bottom" },
     formatter: dateFormatter,
   },
 ];
