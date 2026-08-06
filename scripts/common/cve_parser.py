@@ -18,11 +18,15 @@ def parse_cve_json(data, raw_file_path=None):
     cna = containers.get("cna", {}) or {}
 
     vendor_products = []
+    seen_vendor_products = set()
     for affected in cna.get("affected", []) or []:
         vendor = affected.get("vendor")
         product = affected.get("product")
         if vendor or product:
-            vendor_products.append((vendor, product))
+            pair = (vendor, product)
+            if pair not in seen_vendor_products:
+                seen_vendor_products.add(pair)
+                vendor_products.append(pair)
 
     cwes = _extract_cwes(cna.get("problemTypes", []) or [])
 
@@ -43,6 +47,19 @@ def parse_cve_json(data, raw_file_path=None):
             if cwe_id not in {c for c, _ in cwes}:
                 cwes.append((cwe_id, description))
         cvss_list.extend(_extract_cvss(adp.get("metrics", []) or [], source="adp"))
+        # Some CNAs (e.g. npm/package advisories) omit vendor entirely,
+        # identifying the software only by product/packageName. A downstream
+        # ADP (e.g. Red Hat) that also lists this CVE often supplies the
+        # missing vendor for the same or related product. Merge both
+        # sources, deduping by the exact (vendor, product) pair.
+        for affected in adp.get("affected", []) or []:
+            vendor = affected.get("vendor")
+            product = affected.get("product")
+            if vendor or product:
+                pair = (vendor, product)
+                if pair not in seen_vendor_products:
+                    seen_vendor_products.add(pair)
+                    vendor_products.append(pair)
         for metric in adp.get("metrics", []) or []:
             other = metric.get("other")
             if not other:
