@@ -91,7 +91,7 @@ jobs:
         if: github.event.inputs.full_reingest == 'true'
         run: python scripts/reingest_all.py
 
-      - name: Export static JSON (gzip-compressed)
+      - name: Export static JSON (JSON Lines, uncompressed -- see export_json.py)
         if: steps.check.outputs.changed == 'true' || github.event.inputs.full_reingest == 'true'
         run: python scripts/export_json.py
 
@@ -100,7 +100,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/data/cves.json.gz
+          git add docs/data/cves-*.jsonl docs/data/meta.json
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else

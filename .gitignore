@@ -11,6 +11,8 @@ backfill_log*.txt
 # would also match (and wrongly exclude) docs/data/.
 /data/
 
-# Only the gzip-compressed export (docs/data/cves.json.gz) is committed;
-# the uncompressed JSON is a local-only intermediate for testing.
+# docs/data/cves-*.jsonl + docs/data/meta.json (see export_json.py) ARE
+# committed -- uncompressed JSON Lines shards on purpose, so git can
+# delta-compress between runs. This ignores a single-array "cves.json" some
+# earlier local testing produced; not part of the current pipeline.
 docs/data/cves.json

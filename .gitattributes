@@ -1,0 +1,7 @@
+# Force LF line endings regardless of the checking-out OS's core.autocrlf
+# setting. The cves-*.jsonl shards rely on being byte-identical between runs
+# whenever the underlying data hasn't changed (see export_json.py) -- if
+# Windows checked them out as CRLF while the exporter always writes LF,
+# every line would show as "changed" on the next commit even with zero real
+# content changes, defeating the whole point of the JSON Lines format.
+docs/data/cves-*.jsonl -text

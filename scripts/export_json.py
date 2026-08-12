@@ -1,8 +1,28 @@
-"""Flattens data/vulnviewer.db into docs/data/cves.json for the static
-frontend. No joins needed client-side -- everything is pre-flattened here."""
+"""Flattens data/vulnviewer.db into docs/data/cves-*.jsonl shards for the
+static frontend. No joins needed client-side -- everything is pre-flattened
+here.
+
+Deliberately NOT gzip-compressed and NOT a single JSON array: one CVE object
+per line (JSON Lines) within each shard, so that when only a handful of
+CVEs change between runs, git's own delta compression stores just those
+changed lines instead of an entirely new blob every time (a pre-compressed
+file's bytes change almost completely for any 1-row edit, defeating delta
+compression). GitHub Pages' CDN gzips the response over the wire on its own
+(confirmed via response headers), so this costs nothing on the transfer
+side. generated_at/cve_count live in a separate tiny meta.json specifically
+because they change on every run -- keeping them out of the shards means a
+truly no-op re-export produces byte-identical files.
+
+Sharded (not one file) for two reasons: (1) GitHub hard-blocks any single
+committed file over 100MB, and the full dataset is already well past that
+uncompressed; (2) each CVE is assigned to a shard by a stable hash of its
+own cve_id (NOT by row position), so adding/removing/reordering OTHER CVEs
+never shifts which shard an unrelated CVE lives in or its byte offset
+within that shard -- only the shard(s) actually containing a changed CVE
+differ from the previous run."""
 
 import argparse
-import gzip
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -13,12 +33,17 @@ from common import db, pipeline
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "vulnviewer.db"
-# Committed to git and served by GitHub Pages. Gzip-compressed because the
-# raw JSON is ~150MB for the full Vulnrichment dataset (162k+ CVEs), well
-# over GitHub's 100MB per-file push limit; compressed it's ~10MB. The
-# frontend (docs/js/app.js) decompresses it client-side via
-# DecompressionStream('gzip') before parsing.
-DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "docs" / "data" / "cves.json.gz"
+DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "docs" / "data"
+DEFAULT_META_PATH = PROJECT_ROOT / "docs" / "data" / "meta.json"
+# ~176MB uncompressed today; sized so each shard has plenty of headroom
+# below GitHub's 100MB hard limit as the dataset keeps growing. Bumping this
+# later is a one-time full reshuffle (every shard's membership changes), so
+# it's picked generously rather than tightly.
+NUM_SHARDS = 12
+
+
+def shard_for(cve_id):
+    return int(hashlib.sha1(cve_id.encode("utf-8")).hexdigest(), 16) % NUM_SHARDS
 
 
 def build_grouped_maps(conn):
@@ -95,26 +120,42 @@ def build_rows(conn):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--meta-output", type=Path, default=DEFAULT_META_PATH)
     args = parser.parse_args()
 
     conn = db.connect(args.db)
     rows = build_rows(conn)
     conn.close()
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "generated_at": pipeline.now_iso(),
-        "cve_count": len(rows),
-        "rows": rows,
-    }
-    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    with gzip.open(args.output, "wb", compresslevel=9) as f:
-        f.write(encoded)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    shards = [[] for _ in range(NUM_SHARDS)]
+    for row in rows:
+        shards[shard_for(row["cve_id"])].append(row)
+
+    total_bytes = 0
+    for i, shard_rows in enumerate(shards):
+        # Stable order within the shard too, so an unrelated CVE landing in
+        # the same shard doesn't shuffle this shard's own byte layout.
+        shard_rows.sort(key=lambda r: r["cve_id"])
+        path = args.output_dir / f"cves-{i}.jsonl"
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            for row in shard_rows:
+                f.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
+                f.write("\n")
+        total_bytes += path.stat().st_size
+
+    args.meta_output.write_text(
+        json.dumps(
+            {"generated_at": pipeline.now_iso(), "cve_count": len(rows), "shard_count": NUM_SHARDS},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
 
     print(
-        f"Exported {len(rows)} CVEs to {args.output} "
-        f"({len(encoded) / 1024 / 1024:.1f}MB -> {args.output.stat().st_size / 1024 / 1024:.1f}MB gzipped)"
+        f"Exported {len(rows)} CVEs across {NUM_SHARDS} shards to {args.output_dir} "
+        f"({total_bytes / 1024 / 1024:.1f}MB total)"
     )
 
 

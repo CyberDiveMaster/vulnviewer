@@ -548,42 +548,56 @@ document.getElementById("export-csv").addEventListener("click", () => {
   table.download("csv", "vulnviewer-export.csv");
 });
 
-async function decodeMaybeGzip(buffer) {
-  // The committed file is gzip-compressed (raw JSON is ~150MB, over
-  // GitHub's 100MB push limit; gzipped it's ~10MB). Detect the gzip magic
-  // bytes (1f 8b) and only decompress if present -- if a CDN/proxy ever
-  // transparently decodes Content-Encoding on the way through, the bytes
-  // here would already be plain JSON text, so fall back to reading as-is.
-  const bytes = new Uint8Array(buffer);
-  const isGzip = bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
-  if (isGzip && typeof DecompressionStream !== "undefined") {
-    const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream("gzip"));
-    return new Response(stream).text();
+function parseJsonLines(text) {
+  const rows = [];
+  for (const line of text.split("\n")) {
+    if (line) rows.push(JSON.parse(line));
   }
-  return new TextDecoder("utf-8").decode(buffer);
+  return rows;
+}
+
+function fetchJsonl(path) {
+  return fetch(path, { cache: "no-cache" }).then((res) => {
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`);
+    return res.text();
+  }).then(parseJsonLines);
 }
 
 // "no-cache" (not "no-store") -- forces a revalidation request every load
 // rather than trusting GitHub Pages' CDN cache headers blindly, but still
 // lets the server return a cheap 304 when the data hasn't changed since the
-// last fetch. The data updates automatically twice a day; without this, a
-// long-lived cached copy could silently show stale CVE data after a plain
-// reload.
-fetch("data/cves.json.gz", { cache: "no-cache" })
+// last fetch. The data updates automatically every few minutes; without
+// this, a long-lived cached copy could silently show stale CVE data after a
+// plain reload.
+//
+// The dataset is split across cves-0.jsonl .. cves-N.jsonl (see
+// export_json.py -- one file per hash shard, kept under GitHub's 100MB
+// per-file limit and each committed uncompressed so git can delta-compress
+// between runs). GitHub Pages' CDN gzips them over the wire on its own, so
+// fetch()/text() already receive plain text -- no manual
+// DecompressionStream handling needed here.
+fetch("data/meta.json", { cache: "no-cache" })
   .then((res) => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.arrayBuffer();
+    return res.json();
   })
-  .then(decodeMaybeGzip)
-  .then((text) => JSON.parse(text))
-  .then((payload) => {
+  .then((meta) => {
     document.getElementById("status").textContent =
-      `${payload.cve_count.toLocaleString()} records / last updated: ${trimMillis(payload.generated_at)}`;
-    totalRowCount = payload.cve_count;
+      `${meta.cve_count.toLocaleString()} records / last updated: ${trimMillis(meta.generated_at)}`;
+    totalRowCount = meta.cve_count;
+
+    const shardFetches = [];
+    for (let i = 0; i < meta.shard_count; i++) {
+      shardFetches.push(fetchJsonl(`data/cves-${i}.jsonl`));
+    }
+    return Promise.all(shardFetches);
+  })
+  .then((shardRowArrays) => {
+    const rows = shardRowArrays.flat();
 
     // Derive AV/AC/PR/UI from the primary CVSS vector client-side (no
     // backend/schema change needed).
-    for (const row of payload.rows) {
+    for (const row of rows) {
       const comp = parseVectorComponents(row.cvss_vector);
       row.cvss_av = comp.AV || null;
       row.cvss_ac = comp.AC || null;
@@ -592,7 +606,7 @@ fetch("data/cves.json.gz", { cache: "no-cache" })
       row.cvss_ui = comp.UI || null;
     }
 
-    table.setData(payload.rows);
+    table.setData(rows);
   })
   .catch((err) => {
     document.getElementById("status").textContent = `Failed to load data: ${err.message}`;
