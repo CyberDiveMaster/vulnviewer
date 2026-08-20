@@ -263,6 +263,18 @@ function multiSelectEmptyCheck(value) {
   return !value || value.length === 0;
 }
 
+// Pipe-delimited OR substring match, e.g. "forti|palo|sonic" matches any
+// row whose value contains at least one of the segments (case-insensitive,
+// each segment still a partial/substring match -- same as Tabulator's own
+// default "like" behavior, just OR'd across multiple terms).
+function pipeOrFilterFunc(headerValue, rowValue) {
+  if (!headerValue) return true;
+  const needles = String(headerValue).split("|").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (needles.length === 0) return true;
+  const haystack = String(rowValue || "").toLowerCase();
+  return needles.some((n) => haystack.includes(n));
+}
+
 function minScoreFilterFunc(headerValue, rowValue) {
   if (headerValue === "" || headerValue === null || headerValue === undefined) return true;
   const min = Number(headerValue);
@@ -472,11 +484,13 @@ const columns = [
   },
   {
     title: "Vendor", field: "vendor", headerFilter: "input",
+    headerFilterFunc: pipeOrFilterFunc, headerFilterPlaceholder: "e.g. forti|cisco|microsoft",
     sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     formatter: truncateFormatter(50), tooltip: fullValueTooltip,
   },
   {
     title: "Product", field: "product", headerFilter: "input",
+    headerFilterFunc: pipeOrFilterFunc, headerFilterPlaceholder: "e.g. fortios|pan-os|windows",
     sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     formatter: truncateFormatter(50), tooltip: fullValueTooltip,
   },
