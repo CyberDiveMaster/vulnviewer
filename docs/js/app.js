@@ -37,6 +37,30 @@ function fullValueTooltip(e, cell) {
   return cell.getValue() || "";
 }
 
+// Links each CWE-NNN to its MITRE definitions page. Capped at a handful of
+// links per cell -- most CVEs list one or two CWEs, but a few list dozens,
+// and rendering every one as a full <a> tag would blow out the column width
+// the same way uncapped Vendor/Product lists would (see truncateFormatter
+// above). The full list is still available via the tooltip.
+function cweFormatter(cell) {
+  const ids = cell.getRow().getData().cwe_ids || [];
+  if (ids.length === 0) return '<span class="na-cell">N/A</span>';
+
+  const MAX_LINKS = 6;
+  const links = ids.slice(0, MAX_LINKS).map((id) => {
+    const match = /^CWE-(\d+)$/i.exec(id);
+    if (!match) return escapeHtml(id);
+    const href = `https://cwe.mitre.org/data/definitions/${match[1]}.html`;
+    return `<a href="${href}" target="_blank" rel="noopener">${escapeHtml(id)}</a>`;
+  });
+
+  let html = links.join(", ");
+  if (ids.length > MAX_LINKS) {
+    html += `, <span class="na-cell">+${ids.length - MAX_LINKS} more</span>`;
+  }
+  return html;
+}
+
 function withVersionHint(cell, formattedValue) {
   const version = cell.getRow().getData().cvss_version;
   return version ? `${formattedValue} <span class="cvss-version-hint">v${escapeHtml(version)}</span>` : formattedValue;
@@ -497,7 +521,7 @@ const columns = [
   {
     title: "CWE", field: "cwe", headerFilter: "input",
     sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
-    formatter: truncateFormatter(50), tooltip: fullValueTooltip,
+    formatter: cweFormatter, tooltip: fullValueTooltip,
   },
   {
     title: "Last Updated", field: "date_updated", sorter: "string",
