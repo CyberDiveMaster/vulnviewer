@@ -24,13 +24,17 @@
   <header>
     <div>
       <h1>Vulnrichment Viewer</h1>
-      <p id="subtitle">Browse CISA's Vulnrichment dataset by exploitation status, CVSS vector, vendor, product, and CWE.</p>
+      <p id="subtitle">Browse CISA's Vulnrichment dataset by exploitation status and CVSS details, and see each CVE's BOD 26-04 remediation deadline.</p>
     </div>
     <div id="status">Loading...</div>
   </header>
   <div class="toolbar">
     <span id="filter-count"></span>
-    <button id="export-csv">Export CSV</button>
+    <div id="column-toggle-wrap">
+      <button id="column-toggle-btn" class="toolbar-btn" type="button">Columns ▾</button>
+      <div id="column-toggle-panel" hidden></div>
+    </div>
+    <button id="export-csv" class="toolbar-btn">Export CSV</button>
     <span id="export-status"></span>
   </div>
   <div id="cve-table"></div>

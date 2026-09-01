@@ -392,6 +392,12 @@ const CVSS_VERSION_TOOLTIP =
   "Shows the highest CVSS version available for that CVE (v4.0 > v3.1 > v3.0 > v2.0). " +
   "When both are provided at the same version, the CNA (reporting vendor) value is used over ADP (CISA).";
 
+function bodTierTooltip(exposed) {
+  return `CISA BOD 26-04 remediation timeline (Appendix A, Table 1) assuming Publicly Exposed = ${exposed ? "Yes" : "No"}, ` +
+    "computed from In KEV / Automatable / Technical Impact (from Vulnrichment). " +
+    "N/A means Automatable or Technical Impact hasn't been assessed yet.";
+}
+
 // --- CVSS vector component parsing (AV/AC/PR/UI), computed client-side ---
 // Value vocabularies are fixed by the CVSS spec (v3.x and v4.0 both use
 // AV/AC/PR; UI's value set differs -- v3 uses N/R, v4 adds P/A -- so the
@@ -417,6 +423,121 @@ const VECTOR_SELECT_VALUES = {
     A: 'A (Active) <span class="cvss-version-hint">v4.0</span>',
   },
 };
+
+// CISA BOD 26-04 (Prioritizing Security Updates Based on Risk, June 2026),
+// Appendix A Table 1 -- reproduced verbatim from the directive's own table
+// image (16 combinations of 4 binary variables -> 5 remediation tiers).
+// Key is "exposed,kev,automatable,total" using 1/0; see BOD_TIER_ORDER
+// below for the human-readable tier strings this maps into.
+const BOD_MATRIX = {
+  "1,1,1,1": "3 days & forensic triage",
+  "1,1,1,0": "3 days",
+  "1,1,0,1": "3 days & forensic triage",
+  "1,1,0,0": "14 days",
+  "1,0,1,1": "3 days",
+  "1,0,1,0": "14 days",
+  "1,0,0,1": "14 days",
+  "1,0,0,0": "60 days",
+  "0,1,1,1": "3 days & forensic triage",
+  "0,1,1,0": "14 days",
+  "0,1,0,1": "14 days",
+  "0,1,0,0": "14 days",
+  "0,0,1,1": "60 days",
+  "0,0,1,0": "60 days",
+  "0,0,0,1": "Fix on system upgrade",
+  "0,0,0,0": "Fix on system upgrade",
+};
+
+// Most to least urgent -- used both for the CSS class lookup and to give
+// the header filter's checkboxes a sensible fixed order.
+const BOD_TIER_ORDER = [
+  "3 days & forensic triage",
+  "3 days",
+  "14 days",
+  "60 days",
+  "Fix on system upgrade",
+];
+
+// Publicly Exposed is asset-level (per the directive, answered via CISA's
+// CDM/Cyber Hygiene programs), not something Vulnrichment's CVE-level data
+// can ever supply. Rather than a runtime toggle (which would need to
+// mutate and re-sort/re-filter/re-render all ~178k rows on every click --
+// benchmarked at ~1s via replaceData, and outright hung via updateData),
+// both possible answers are computed once at load time as two separate
+// static columns (see bod_tier_exposed/bod_tier_not_exposed below). In
+// KEV, Automatable, and Technical Impact all come directly from
+// Vulnrichment (the directive explicitly defines them that way in
+// Appendix A note j).
+function bodTierFor(row, assumeExposed) {
+  if (row.automatable !== "yes" && row.automatable !== "no") return null;
+  if (row.technical_impact !== "total" && row.technical_impact !== "partial") return null;
+  const key = [
+    assumeExposed ? "1" : "0",
+    row.kev_date_added ? "1" : "0",
+    row.automatable === "yes" ? "1" : "0",
+    row.technical_impact === "total" ? "1" : "0",
+  ].join(",");
+  return BOD_MATRIX[key];
+}
+
+function bodTierFormatter(cell) {
+  const v = cell.getValue();
+  if (!v) return '<span class="na-cell">N/A</span>';
+  const tierIndex = BOD_TIER_ORDER.indexOf(v);
+  return `<span class="bod-tier bod-t${tierIndex + 1}">${escapeHtml(v)}</span>`;
+}
+
+const BOD_DIRECTIVE_URL = "https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk";
+
+// Only the "BOD 26-04" part of the title links to the official directive
+// -- the "(Exposed)"/"(Not Exposed)" suffix is plain text, rendered
+// smaller/dimmer so the full title fits without wrapping or clipping.
+// stopPropagation on the link's click keeps following it from also
+// triggering Tabulator's click-to-sort behavior on the rest of the header.
+function bodTitleFormatter(cell) {
+  const fullTitle = cell.getValue();
+  const match = /^(.*?)\s*(\(.*\))$/.exec(fullTitle);
+  const main = match ? match[1] : fullTitle;
+  const suffix = match ? match[2] : "";
+
+  const container = document.createElement("span");
+
+  const link = document.createElement("a");
+  link.href = BOD_DIRECTIVE_URL;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.title = "View the official BOD 26-04 directive on cisa.gov";
+  link.addEventListener("click", (e) => e.stopPropagation());
+  link.textContent = main;
+  container.appendChild(link);
+
+  if (suffix) {
+    container.appendChild(document.createTextNode(" "));
+    const suffixEl = document.createElement("span");
+    suffixEl.classList.add("bod-title-suffix");
+    suffixEl.textContent = suffix;
+    container.appendChild(suffixEl);
+  }
+  return container;
+}
+
+// Same "always pin empty to the bottom regardless of sort direction"
+// convention as activeSinceSorter -- rows with no SSVC assessment yet have
+// no meaningful urgency ranking at all, not just a low one.
+function bodTierSorter(a, b, aRow, bRow, column, dir) {
+  const aEmpty = !a;
+  const bEmpty = !b;
+  let emptyAlign = 0;
+  if (aEmpty) {
+    emptyAlign = bEmpty ? 0 : -1;
+  } else if (bEmpty) {
+    emptyAlign = 1;
+  } else {
+    return BOD_TIER_ORDER.indexOf(a) - BOD_TIER_ORDER.indexOf(b);
+  }
+  if (dir === "asc") { emptyAlign *= -1; }
+  return emptyAlign;
+}
 
 function parseVectorComponents(vector) {
   const result = {};
@@ -519,14 +640,37 @@ const columns = [
     formatter: truncateFormatter(50), tooltip: fullValueTooltip,
   },
   {
-    title: "CWE", field: "cwe", headerFilter: "input",
+    title: "CWE", field: "cwe", headerFilter: "input", visible: false,
     sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     formatter: cweFormatter, tooltip: fullValueTooltip,
   },
   {
-    title: "Last Updated", field: "date_updated", sorter: "string",
+    title: "Last Updated", field: "date_updated", sorter: "string", visible: false,
     sorterParams: { alignEmptyValues: "bottom" },
     formatter: dateFormatter,
+  },
+  {
+    // Explicit (not auto-sized) width -- under fitDataStretch, Tabulator
+    // measures each column's own actual content, and this one and its
+    // sibling below don't always happen to contain the same longest tier
+    // string, so auto-sizing alone can leave them a few pixels apart.
+    title: "BOD 26-04 (Exposed)", field: "bod_tier_exposed", sorter: bodTierSorter, width: 180,
+    titleFormatter: bodTitleFormatter,
+    headerFilter: multiSelectHeaderFilter(Object.fromEntries(BOD_TIER_ORDER.map((t) => [t, t]))),
+    headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
+    formatter: bodTierFormatter,
+  },
+  {
+    // maxWidth caps it at the same width as its sibling above -- otherwise,
+    // being the LAST column, fitDataStretch would grow only this one to
+    // fill any leftover space on a wide window, leaving the pair visibly
+    // mismatched.
+    title: "BOD 26-04 (Not Exposed)", field: "bod_tier_not_exposed", sorter: bodTierSorter,
+    width: 180, maxWidth: 180,
+    titleFormatter: bodTitleFormatter,
+    headerFilter: multiSelectHeaderFilter(Object.fromEntries(BOD_TIER_ORDER.map((t) => [t, t]))),
+    headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
+    formatter: bodTierFormatter,
   },
 ];
 
@@ -547,6 +691,54 @@ const table = new Tabulator("#cve-table", {
 table.on("tableBuilt", () => {
   const titleEl = table.getColumn("cvss_score").getElement().querySelector(".tabulator-col-title");
   if (titleEl) titleEl.title = CVSS_VERSION_TOOLTIP;
+
+  const bodExposedTitleEl = table.getColumn("bod_tier_exposed").getElement().querySelector(".tabulator-col-title");
+  if (bodExposedTitleEl) bodExposedTitleEl.title = bodTierTooltip(true);
+
+  const bodNotExposedTitleEl = table.getColumn("bod_tier_not_exposed").getElement().querySelector(".tabulator-col-title");
+  if (bodNotExposedTitleEl) bodNotExposedTitleEl.title = bodTierTooltip(false);
+
+  // Lets a user hide columns they don't care about, on any screen size --
+  // a manual alternative to Tabulator's own device-width-driven
+  // responsiveLayout, which fought badly with fitDataStretch on resize
+  // (see git history). CVE ID is left out since it's frozen/always needed
+  // to identify a row at all.
+  const columnTogglePanel = document.getElementById("column-toggle-panel");
+  for (const col of table.getColumns()) {
+    const field = col.getField();
+    if (!field || field === "cve_id") continue;
+    const label = document.createElement("label");
+    label.classList.add("column-toggle-option");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = col.isVisible();
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) col.show(); else col.hide();
+    });
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(" " + col.getDefinition().title));
+    columnTogglePanel.appendChild(label);
+  }
+
+  // "No data" (the placeholder set above) is meant for a genuinely empty
+  // result -- e.g. filters that match nothing -- not for "hasn't loaded
+  // yet", which looks identical and reads as the site being broken.
+  // table.alert() is a separate overlay that can cover that first-load
+  // window without touching the placeholder's own meaning. Cleared once
+  // setData succeeds (or replaced with an error message on failure) below.
+  table.alert("Loading data…");
+});
+
+const columnToggleBtn = document.getElementById("column-toggle-btn");
+const columnTogglePanelEl = document.getElementById("column-toggle-panel");
+columnToggleBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  columnTogglePanelEl.hidden = !columnTogglePanelEl.hidden;
+});
+document.addEventListener("click", (e) => {
+  if (!columnTogglePanelEl.hidden && !columnTogglePanelEl.contains(e.target) && e.target !== columnToggleBtn) {
+    columnTogglePanelEl.hidden = true;
+  }
 });
 
 let totalRowCount = 0;
@@ -633,8 +825,8 @@ fetch("data/meta.json", { cache: "no-cache" })
   .then((shardRowArrays) => {
     const rows = shardRowArrays.flat();
 
-    // Derive AV/AC/PR/UI from the primary CVSS vector client-side (no
-    // backend/schema change needed).
+    // Derive AV/AC/PR/UI from the primary CVSS vector, and both BOD 26-04
+    // timelines, client-side (no backend/schema change needed for either).
     for (const row of rows) {
       const comp = parseVectorComponents(row.cvss_vector);
       row.cvss_av = comp.AV || null;
@@ -642,10 +834,14 @@ fetch("data/meta.json", { cache: "no-cache" })
       row.cvss_at = comp.AT || null;
       row.cvss_pr = comp.PR || null;
       row.cvss_ui = comp.UI || null;
+      row.bod_tier_exposed = bodTierFor(row, true);
+      row.bod_tier_not_exposed = bodTierFor(row, false);
     }
 
     table.setData(rows);
+    table.clearAlert();
   })
   .catch((err) => {
     document.getElementById("status").textContent = `Failed to load data: ${err.message}`;
+    table.alert(`Failed to load data: ${escapeHtml(err.message)}`, "error");
   });
