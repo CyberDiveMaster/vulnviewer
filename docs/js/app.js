@@ -571,21 +571,24 @@ const columns = [
     formatter: naFormatter,
   },
   {
-    title: "Exploitation", field: "exploitation",
+    // width matches Technical Impact below (its own natural content width)
+    // so the three SSVC decision-point columns read as a visually
+    // consistent group rather than each auto-sizing to its own text.
+    title: "Exploitation", field: "exploitation", width: 141,
     sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: multiSelectHeaderFilter({ none: "none", poc: "poc", active: "active" }),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     formatter: exploitationFormatter,
   },
   {
-    title: "Automatable", field: "automatable",
+    title: "Automatable", field: "automatable", width: 141,
     sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: multiSelectHeaderFilter({ yes: "yes", no: "no" }),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
     formatter: naFormatter,
   },
   {
-    title: "Technical Impact", field: "technical_impact",
+    title: "Technical Impact", field: "technical_impact", width: 141,
     sorter: "string", sorterParams: { alignEmptyValues: "bottom" },
     headerFilter: multiSelectHeaderFilter({ partial: "partial", total: "total" }),
     headerFilterFunc: multiSelectFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
