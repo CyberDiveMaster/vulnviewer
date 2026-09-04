@@ -737,9 +737,16 @@ function restoreStateFromURL() {
     return;
   }
 
-  for (const field of state.hidden || []) {
-    const col = table.getColumn(field);
-    if (col) col.hide();
+  // Every column's visibility is set explicitly (not just hiding whatever
+  // is listed) -- several columns (AV/AC/AT/PR/UI, CWE, Last Updated)
+  // default to hidden, so a column the sharer had un-hidden needs an
+  // explicit show() here; leaving it untouched would keep it at its
+  // built-in default instead of the shared state.
+  const hidden = new Set(state.hidden || []);
+  for (const col of table.getColumns()) {
+    const field = col.getField();
+    if (!field || field === "cve_id") continue;
+    if (hidden.has(field)) col.hide(); else col.show();
   }
 
   for (const f of state.filters || []) {
