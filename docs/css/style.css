@@ -246,3 +246,51 @@ header h1 {
 .multiselect-option:hover {
   background: rgba(128, 128, 128, 0.15);
 }
+
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0 1rem;
+}
+
+#share-links {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+#share-links a {
+  display: block;
+  /* X's mark is solid black/currentColor (see its inline fill) -- unlike
+     the other 3 icons' own vivid brand colors, plain black would vanish
+     against a dark system theme, so it alone needs the same opacity
+     treatment as muted text elsewhere rather than full-strength color. */
+  color: CanvasText;
+  opacity: 0.75;
+}
+
+#share-links a:hover {
+  opacity: 1;
+}
+
+#share-links svg {
+  height: 20px;
+  width: 20px;
+  display: block;
+}
+
+/* The ANTERAS logo's own transparent background is fine in light mode,
+   but its wordmark is solid black -- unreadable against a dark system
+   theme (this page follows prefers-color-scheme; the logo itself
+   doesn't). A small fixed-white chip behind it keeps the actual brand
+   colors untouched (no invert() hacks) and legible in both themes. */
+#anteras-logo {
+  height: 22px;
+  width: auto;
+  display: block;
+  background: #fff;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+}

@@ -856,6 +856,30 @@ document.getElementById("reset-view-btn").addEventListener("click", () => {
   location.href = location.pathname;
 });
 
+// Reads location.href fresh at click time (not a static href baked in
+// ahead of time) so sharing also carries along whatever filtered/sorted
+// view is currently active via ?state=, same link a user would get from
+// the address bar itself.
+const SHARE_TEXT = "Vulnrichment Viewer -- filter CISA's Vulnrichment CVE data by exploitation status and CVSS, with BOD 26-04 remediation deadlines.";
+
+function setupShareLink(id, buildUrl) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener("click", (e) => {
+    e.preventDefault();
+    window.open(buildUrl(location.href, SHARE_TEXT), "_blank", "noopener");
+  });
+}
+
+setupShareLink("share-x", (url, text) =>
+  `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
+setupShareLink("share-linkedin", (url) =>
+  `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`);
+setupShareLink("share-reddit", (url, text) =>
+  `https://www.reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(text)}`);
+setupShareLink("share-whatsapp", (url, text) =>
+  `https://wa.me/?text=${encodeURIComponent(text + " " + url)}`);
+
 const columnToggleBtn = document.getElementById("column-toggle-btn");
 const columnTogglePanelEl = document.getElementById("column-toggle-panel");
 columnToggleBtn.addEventListener("click", (e) => {
