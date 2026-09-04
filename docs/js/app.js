@@ -686,12 +686,121 @@ const table = new Tabulator("#cve-table", {
   initialSort: [{ column: "first_active_date", dir: "desc" }],
 });
 
+// Puts the current sort/filters/hidden-columns into a single `state` query
+// param (via history.replaceState -- no reload, no new history entries) so
+// copying the URL reproduces the exact view for someone else. Restoring on
+// load only touches column headers/filter values, not the ~178k rows of
+// data itself, so this costs the same as a user clicking/typing those same
+// filters by hand -- it doesn't scale with row count.
+function getShareableState() {
+  return {
+    sorters: table.getSorters().map((s) => ({ field: s.field, dir: s.dir })),
+    filters: table.getHeaderFilters(),
+    hidden: table.getColumns().map((c) => c.getField()).filter((f) => f && !table.getColumn(f).isVisible()),
+  };
+}
+
+// dataFiltered/dataSorted both fire once as an intrinsic part of the
+// initial setData() call, before restoreStateFromURL()'s own
+// setHeaderFilterValue/setSort calls (made earlier, at tableBuilt time,
+// before there was any data to filter/sort) have actually taken effect --
+// without this guard, that first automatic firing would overwrite a
+// shared URL's `state` param with an empty snapshot before the real
+// restore ever got a chance to run.
+let initialLoadComplete = false;
+
+function updateURLFromState() {
+  if (!initialLoadComplete) return;
+  const state = getShareableState();
+  const hasState = state.sorters.length > 0 || state.filters.length > 0 || state.hidden.length > 0;
+  const url = new URL(location.href);
+  if (hasState) {
+    url.searchParams.set("state", JSON.stringify(state));
+  } else {
+    url.searchParams.delete("state");
+  }
+  history.replaceState(null, "", url);
+}
+
+// Custom header filter editors (multiselect-*, range-filter) keep their own
+// DOM/selection state that setHeaderFilterValue() alone won't touch, so a
+// restored filter would apply correctly but LOOK unset. Driving them
+// through their own checkbox/flatpickr APIs keeps the visible control in
+// sync with the filter it's actually applying, same as a user's own click.
+function restoreStateFromURL() {
+  const raw = new URLSearchParams(location.search).get("state");
+  if (!raw) return;
+  let state;
+  try {
+    state = JSON.parse(raw);
+  } catch (err) {
+    return;
+  }
+
+  for (const field of state.hidden || []) {
+    const col = table.getColumn(field);
+    if (col) col.hide();
+  }
+
+  for (const f of state.filters || []) {
+    const col = table.getColumn(f.field);
+    if (!col) continue;
+    const headerEl = col.getElement();
+
+    if (f.value && typeof f.value === "object" && !Array.isArray(f.value)) {
+      // Date range: apply the filter FIRST -- setHeaderFilterValue turned
+      // out to redraw/reset this custom editor's own DOM as a side effect,
+      // which was silently wiping out Flatpickr's display when done in the
+      // other order. Flatpickr initializes inside the header filter's
+      // onRendered callback (not guaranteed to have run yet here in
+      // tableBuilt) and setHeaderFilterValue's redraw is likewise not
+      // guaranteed synchronous, so the display update retries briefly
+      // rather than assuming either has already happened.
+      table.setHeaderFilterValue(f.field, f.value);
+      const dates = [f.value.from, f.value.to].filter(Boolean);
+      (function setFlatpickrDate(attemptsLeft) {
+        const input = headerEl.querySelector(".range-filter input");
+        if (input && input._flatpickr) {
+          input._flatpickr.setDate(dates, false);
+        } else if (attemptsLeft > 0) {
+          setTimeout(() => setFlatpickrDate(attemptsLeft - 1), 20);
+        }
+      })(15);
+    } else if (Array.isArray(f.value)) {
+      // Multi-select: check the matching boxes through their own change
+      // event so the trigger button's label and the actual filter both
+      // update exactly as if the user had clicked them.
+      const checkboxes = headerEl.querySelectorAll(".multiselect-option input");
+      for (const checkbox of checkboxes) {
+        if (f.value.includes(checkbox.value) && !checkbox.checked) {
+          checkbox.checked = true;
+          checkbox.dispatchEvent(new Event("change"));
+        }
+      }
+    } else {
+      // Plain built-in "input" editors (Vendor/Product/CVE ID/CWE/Min
+      // score) -- Tabulator keeps these in sync on its own.
+      table.setHeaderFilterValue(f.field, f.value);
+    }
+  }
+
+  if (state.sorters && state.sorters.length) {
+    // getSorters() returns {field, dir}; setSort() takes {column, dir} --
+    // an asymmetric API, not a typo.
+    table.setSort(state.sorters.map((s) => ({ column: s.field, dir: s.dir })));
+  }
+}
+
 // Native title attribute, not Tabulator's headerTooltip -- that module
 // tracks one shared popup across all columns and doesn't reliably hide it
 // when the mouse moves directly from a tooltipped header to a
 // non-tooltipped one, which would leak this text onto AV/AC/AT/PR/UI. A
 // native tooltip is scoped to this exact element by the browser itself.
 table.on("tableBuilt", () => {
+  // Before the column-toggle checkboxes are built below, so their checked
+  // state already reflects any columns a shared URL hid.
+  restoreStateFromURL();
+
   const titleEl = table.getColumn("cvss_score").getElement().querySelector(".tabulator-col-title");
   if (titleEl) titleEl.title = CVSS_VERSION_TOOLTIP;
 
@@ -717,6 +826,7 @@ table.on("tableBuilt", () => {
     checkbox.checked = col.isVisible();
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) col.show(); else col.hide();
+      updateURLFromState();
     });
     label.appendChild(checkbox);
     label.appendChild(document.createTextNode(" " + col.getDefinition().title));
@@ -754,6 +864,11 @@ table.on("dataFiltered", (filters, rows) => {
   filterCountEl.textContent = rows.length === totalRowCount
     ? `${totalRowCount.toLocaleString()} rows`
     : `${rows.length.toLocaleString()} / ${totalRowCount.toLocaleString()} rows match`;
+  updateURLFromState();
+});
+
+table.on("dataSorted", () => {
+  updateURLFromState();
 });
 
 // Guard rail, not a hard technical limit -- the browser can build a CSV of
@@ -841,8 +956,14 @@ fetch("data/meta.json", { cache: "no-cache" })
       row.bod_tier_not_exposed = bodTierFor(row, false);
     }
 
-    table.setData(rows);
-    table.clearAlert();
+    // dataFiltered/dataSorted fire internally as part of setData's own
+    // rendering, before the promise it returns resolves -- initialLoadComplete
+    // must flip only after that settles, or the guard in updateURLFromState()
+    // above wouldn't actually catch that first automatic firing.
+    table.setData(rows).then(() => {
+      table.clearAlert();
+      initialLoadComplete = true;
+    });
   })
   .catch((err) => {
     document.getElementById("status").textContent = `Failed to load data: ${err.message}`;
