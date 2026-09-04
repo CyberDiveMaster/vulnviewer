@@ -849,6 +849,13 @@ table.on("tableBuilt", () => {
   table.alert("Loading data…");
 });
 
+// A plain reload with no `state` query param already goes through the
+// exact same path a fresh visit takes -- no need to hand-roll code to
+// clear every filter/sorter/hidden column individually.
+document.getElementById("reset-view-btn").addEventListener("click", () => {
+  location.href = location.pathname;
+});
+
 const columnToggleBtn = document.getElementById("column-toggle-btn");
 const columnTogglePanelEl = document.getElementById("column-toggle-panel");
 columnToggleBtn.addEventListener("click", (e) => {
