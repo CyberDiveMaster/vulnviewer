@@ -281,6 +281,41 @@ footer {
   display: block;
 }
 
+#contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: CanvasText;
+  opacity: 0.65;
+  text-decoration: none;
+}
+
+#contact-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+#contact-link svg {
+  height: 13px;
+  width: 13px;
+  display: block;
+}
+
+/* The handle carries the meaning; "Feedback" is just the cue for what
+   the link is for, so it stays a notch quieter and drops out first on
+   narrow screens rather than wrapping the footer. */
+#contact-label {
+  opacity: 0.8;
+}
+
+@media (max-width: 560px) {
+  #contact-label {
+    display: none;
+  }
+}
+
 /* The ANTERAS logo's own transparent background is fine in light mode,
    but its wordmark is solid black -- unreadable against a dark system
    theme (this page follows prefers-color-scheme; the logo itself
