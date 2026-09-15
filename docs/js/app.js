@@ -94,7 +94,7 @@ function epssFormatter(cell) {
   if (v === null || v === undefined || v === "") {
     return '<span class="na-cell">N/A</span>';
   }
-  const pct = escapeHtml((Number(v) * 100).toFixed(2)) + "%";
+  const pct = escapeHtml((Number(v) * 100).toFixed(1)) + "%";
   const cveId = cell.getRow().getData().cve_id;
   const epssUrl = `https://api.first.org/data/v1/epss?cve=${encodeURIComponent(cveId)}`;
   return `<a href="${epssUrl}" target="_blank" rel="noopener">${pct}</a>`;
