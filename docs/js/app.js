@@ -74,6 +74,20 @@ function cvssScoreFormatter(cell) {
   return withVersionHint(cell, escapeHtml(v));
 }
 
+// Links the displayed percentage to FIRST.org's own EPSS API JSON for this
+// specific CVE -- the primary source the score/percentile values come from
+// -- so the number can always be checked against upstream directly.
+function epssFormatter(cell) {
+  const v = cell.getValue();
+  if (v === null || v === undefined || v === "") {
+    return '<span class="na-cell">N/A</span>';
+  }
+  const pct = escapeHtml((Number(v) * 100).toFixed(2)) + "%";
+  const cveId = cell.getRow().getData().cve_id;
+  const epssUrl = `https://api.first.org/data/v1/epss?cve=${encodeURIComponent(cveId)}`;
+  return `<a href="${epssUrl}" target="_blank" rel="noopener">${pct}</a>`;
+}
+
 // Strips the sub-second fraction from an ISO timestamp (e.g.
 // "2023-08-29T19:38:55.399Z" -> "2023-08-29T19:38:55Z") -- the millisecond
 // precision comes straight from Vulnrichment's own timestamps and just adds
@@ -304,6 +318,16 @@ function minScoreFilterFunc(headerValue, rowValue) {
   const min = Number(headerValue);
   if (Number.isNaN(min)) return true;
   return rowValue !== null && rowValue !== undefined && Number(rowValue) >= min;
+}
+
+// epss_score is stored as a raw 0-1 probability but displayed as a
+// percentage (see epssFormatter), so the filter compares against the same
+// percentage a user sees rather than making them type a decimal.
+function minEpssPercentFilterFunc(headerValue, rowValue) {
+  if (headerValue === "" || headerValue === null || headerValue === undefined) return true;
+  const minPercent = Number(headerValue);
+  if (Number.isNaN(minPercent)) return true;
+  return rowValue !== null && rowValue !== undefined && Number(rowValue) * 100 >= minPercent;
 }
 
 // --- Date range header filter, shared by Date Published / Active Since ---
@@ -569,6 +593,15 @@ const columns = [
     title: "Days", field: "days_publish_to_active", sorter: "number",
     sorterParams: { alignEmptyValues: "bottom" },
     formatter: naFormatter,
+  },
+  {
+    // Hidden by default: synced daily from FIRST.org on its own schedule,
+    // separate from the 10-minute Vulnrichment poll (see fetch_epss.py) --
+    // not everyone needs it, and it's not part of Vulnrichment's own data.
+    title: "EPSS", field: "epss_score", visible: false,
+    sorter: "number", sorterParams: { alignEmptyValues: "bottom" },
+    headerFilter: "input", headerFilterFunc: minEpssPercentFilterFunc,
+    headerFilterPlaceholder: "Min %", formatter: epssFormatter,
   },
   {
     // width matches Technical Impact below (its own natural content width)

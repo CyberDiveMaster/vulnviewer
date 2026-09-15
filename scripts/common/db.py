@@ -98,6 +98,11 @@ def connect(db_path):
 def init_schema(conn):
     conn.executescript(_DDL)
     _ensure_column(conn, "cve", "days_publish_to_active", "INTEGER")
+    # EPSS (FIRST.org) is a separate data source, synced on its own daily
+    # schedule -- see fetch_epss.py -- not part of the Vulnrichment git
+    # mining these other columns come from.
+    _ensure_column(conn, "cve", "epss_score", "REAL")
+    _ensure_column(conn, "cve", "epss_percentile", "REAL")
     meta_set(conn, "schema_version", SCHEMA_VERSION)
     conn.commit()
 
@@ -204,6 +209,17 @@ def _pick_primary_cvss(cvss_list):
         return (version_rank, source_rank)
 
     return max(cvss_list, key=rank)
+
+
+def update_epss_scores(conn, rows):
+    """rows: iterable of (epss_score, epss_percentile, cve_id) tuples. Plain
+    UPDATE (not upsert) -- EPSS covers CVEs we don't track (and vice versa),
+    so a non-matching cve_id is a silent no-op rather than creating a
+    placeholder row with none of this dataset's other fields populated."""
+    conn.executemany(
+        "UPDATE cve SET epss_score = ?, epss_percentile = ? WHERE cve_id = ?",
+        rows,
+    )
 
 
 def record_exploitation_transition(conn, cve_id, value, previous_value, observed_date, ssvc_timestamp, commit_sha):

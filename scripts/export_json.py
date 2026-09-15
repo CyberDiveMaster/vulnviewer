@@ -94,6 +94,8 @@ def build_rows(conn):
             "cvss_version": cve["cvss_version"],
             "cvss_source": cve["cvss_source"],
             "cvss_all": cvss_map.get(cve_id, []),
+            "epss_score": cve["epss_score"],
+            "epss_percentile": cve["epss_percentile"],
             "exploitation": cve["exploitation"],
             "automatable": cve["automatable"],
             "technical_impact": cve["technical_impact"],
