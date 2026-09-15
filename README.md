@@ -70,9 +70,5 @@ Vendor / Product / CWE でフィルタ・ソートでき、SSVC Exploitationが
   キャッシュが失効・削除された場合（長期間未使用、容量上限超過など）は、
   次回実行時に一からVulnrichmentの全履歴マイニングをやり直すことになる
   （データが壊れることはないが、その回だけ処理時間が伸びる）。
-- `days_none_to_active` / `days_poc_to_active` は、そのCVEの遷移が
-  Vulnrichmentのgit履歴内で実際に観測できた場合のみ計算される。
-  履歴上「最初から active/poc だった」CVE（遷移元が観測不可）は `N/A` になる
-  （`exploitation_left_censored` フラグで判別可能）。
 - SSVC評価自体が存在しないCVE（CNAのみのレコード）は `exploitation` が
   `null` になり、文字列 `"none"` とは区別される。

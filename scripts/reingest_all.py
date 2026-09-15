@@ -1,12 +1,15 @@
 """One-off/occasional maintenance: re-parses and re-ingests the CURRENT
 snapshot for every CVE file at the tip, using whatever cve_parser.py's
-latest logic is. Useful after fixing a parsing bug (e.g. CWE data that ADP
-supplies but CNA's own problemTypes entry omits) so already-ingested CVEs
-get corrected retroactively, not just ones touched by future commits.
+latest logic is, and recomputes every CVE's derived history-based columns
+(first_active_date/days_publish_to_active) using whatever db.py's latest
+recompute_derived() logic is. Useful after fixing a parsing bug (e.g. CWE
+data that ADP supplies but CNA's own problemTypes entry omits) or a
+derived-column bug, so already-ingested CVEs get corrected retroactively,
+not just ones touched by future commits.
 
-Does NOT touch exploitation_history or meta.last_processed_sha -- run
-update_incremental.py first to catch up normally, then this to refresh
-every CVE's current-state fields with the corrected parser.
+Does NOT touch exploitation_history itself or meta.last_processed_sha --
+run update_incremental.py first to catch up normally, then this to refresh
+every CVE's current-state and derived fields with the corrected logic.
 """
 
 import argparse
@@ -39,6 +42,10 @@ def main():
 
     all_files = git_mine.list_tree_files(args.clone_dir, ref=tip_sha)
     pipeline.ingest_snapshot(conn, args.clone_dir, tip_sha, all_files)
+
+    all_cve_ids = [row["cve_id"] for row in conn.execute("SELECT DISTINCT cve_id FROM exploitation_history")]
+    print(f"Recomputing derived columns for {len(all_cve_ids)} CVEs with history...")
+    pipeline.recompute_derived_for(conn, all_cve_ids)
 
     conn.close()
     print(f"Re-ingestion complete at tip {tip_sha}")

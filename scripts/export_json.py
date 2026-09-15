@@ -106,12 +106,7 @@ def build_rows(conn):
             "cwe_ids": [cwe_id for cwe_id, _ in cwes],
             "kev_date_added": cve["kev_date_added"],
             "kev_reference": cve["kev_reference"],
-            "first_none_date": cve["first_none_date"],
-            "first_poc_date": cve["first_poc_date"],
             "first_active_date": cve["first_active_date"],
-            "exploitation_left_censored": bool(cve["exploitation_left_censored"]),
-            "days_none_to_active": cve["days_none_to_active"],
-            "days_poc_to_active": cve["days_poc_to_active"],
             "days_publish_to_active": cve["days_publish_to_active"],
             "raw_file_path": cve["raw_file_path"],
         })

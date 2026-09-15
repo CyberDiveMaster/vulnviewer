@@ -174,9 +174,8 @@ GitHub ActionsによるデータのバッチクロールとGitHub Pagesによる
 <h3>5.1 派生列（<code>cve</code>テーブル）</h3>
 <table>
   <tr><th>列名</th><th>説明</th></tr>
-  <tr><td><code>first_none_date / first_poc_date / first_active_date</code></td><td>各Exploitation値が最初に観測された日時</td></tr>
-  <tr><td><code>exploitation_left_censored</code></td><td>git履歴上の初出時点で既にpoc/activeだった（遷移元が観測不能）ことを示すフラグ</td></tr>
-  <tr><td><code>days_publish_to_active</code></td><td>CVE公開日からExploitationが最初にActiveになるまでの日数。公開当日にActive化した場合は0。Active化した記録が一度もない場合はNULL</td></tr>
+  <tr><td><code>first_active_date</code></td><td>そのCVEが直近でExploitation=activeへ遷移した日時。現在の状態がactiveでない場合はNULL（過去にactiveだった履歴があっても保持しない）</td></tr>
+  <tr><td><code>days_publish_to_active</code></td><td>CVE公開日から上記<code>first_active_date</code>までの日数。公開当日にActive化した場合は0。現在の状態がactiveでない場合はNULL</td></tr>
 </table>
 <div class="note">
 Exploitation状態の履歴は、Vulnrichmentリポジトリのgit履歴を <code>git log -G'"Exploitation"'</code>

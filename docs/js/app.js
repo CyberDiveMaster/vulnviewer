@@ -104,12 +104,15 @@ function dateFormatter(cell) {
   return trimMillis(v);
 }
 
-// first_active_date is a historical milestone (first time Exploitation was
-// EVER observed as "active") and stays set even if a later re-assessment
-// walks the value back down to "poc"/"none" -- CISA does sometimes revise
-// an active call. Only display it while the CVE's CURRENT status is still
-// "active"; the underlying data/CSV export still carries the true
-// historical date for anyone who wants it.
+// first_active_date/days_publish_to_active are historical milestones (from
+// the first time Exploitation was EVER observed as "active") and stay set
+// even if a later re-assessment walks the value back down to "poc"/"none"
+// -- CISA does sometimes revise an active call (e.g. CVE-2023-51409,
+// CVE-2025-9491). Only display them while the CVE's CURRENT status is
+// still "active", so "Active Since"/"Days" can't show a stale milestone
+// alongside an Exploitation value that no longer agrees with it; the
+// underlying data/CSV export still carries the true historical values for
+// anyone who wants them.
 function activeSinceFormatter(cell) {
   const row = cell.getRow().getData();
   if (row.exploitation !== "active") {
@@ -118,13 +121,23 @@ function activeSinceFormatter(cell) {
   return dateFormatter(cell);
 }
 
-// Sorting by the raw first_active_date would place currently-inactive rows
-// (displayed as N/A) in the middle of the sorted list, using a date value
-// the user can no longer see -- confusing. Treat those rows as "empty" too,
-// and pin them to the end regardless of asc/desc, mirroring Tabulator's own
-// alignEmptyValues:"bottom" convention (see the built-in string/number
-// sorters, which flip only when dir === "asc" for a "bottom" alignment).
-function activeSinceSorter(a, b, aRow, bRow, column, dir) {
+function daysActiveFormatter(cell) {
+  const row = cell.getRow().getData();
+  if (row.exploitation !== "active") {
+    return '<span class="na-cell">N/A</span>';
+  }
+  return naFormatter(cell);
+}
+
+// Sorting by the raw first_active_date/days_publish_to_active would place
+// currently-inactive rows (displayed as N/A above) in the middle of the
+// sorted list, using a value the user can no longer see -- confusing. Treat
+// those rows as "empty" too, and pin them to the end regardless of asc/desc,
+// mirroring Tabulator's own alignEmptyValues:"bottom" convention (see the
+// built-in string/number sorters, which flip only when dir === "asc" for a
+// "bottom" alignment). Shared by both "Active Since" and "Days" -- the
+// comparison itself (a < b / a > b) works for either dates or numbers.
+function activeOnlySorter(a, b, aRow, bRow, column, dir) {
   const aEmpty = aRow.getData().exploitation !== "active" || !a;
   const bEmpty = bRow.getData().exploitation !== "active" || !b;
   let emptyAlign = 0;
@@ -397,7 +410,7 @@ function dateRangeFilterFunc(headerValue, rowValue) {
 }
 
 // Active Since displays N/A for any CVE that isn't CURRENTLY active (see
-// activeSinceFormatter/activeSinceSorter above) even though the underlying
+// activeSinceFormatter/activeOnlySorter above) even though the underlying
 // first_active_date is still the true historical value. Filtering by that
 // hidden value would let currently-inactive rows show up inside a date
 // range the user can't actually see them in, so a range filter here should
@@ -546,7 +559,7 @@ function bodTitleFormatter(cell) {
 }
 
 // Same "always pin empty to the bottom regardless of sort direction"
-// convention as activeSinceSorter -- rows with no SSVC assessment yet have
+// convention as activeOnlySorter -- rows with no SSVC assessment yet have
 // no meaningful urgency ranking at all, not just a low one.
 function bodTierSorter(a, b, aRow, bRow, column, dir) {
   const aEmpty = !a;
@@ -584,15 +597,14 @@ const columns = [
     formatter: dateFormatter,
   },
   {
-    title: "Active Since", field: "first_active_date", sorter: activeSinceSorter,
+    title: "Active Since", field: "first_active_date", sorter: activeOnlySorter,
     headerFilter: dateRangeHeaderFilter, headerFilterFunc: activeSinceFilterFunc,
     headerFilterEmptyCheck: dateRangeEmptyCheck, headerFilterLiveFilter: false,
     formatter: activeSinceFormatter,
   },
   {
-    title: "Days", field: "days_publish_to_active", sorter: "number",
-    sorterParams: { alignEmptyValues: "bottom" },
-    formatter: naFormatter,
+    title: "Days", field: "days_publish_to_active", sorter: activeOnlySorter,
+    formatter: daysActiveFormatter,
   },
   {
     // Hidden by default: synced daily from FIRST.org on its own schedule,

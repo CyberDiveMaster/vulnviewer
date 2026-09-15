@@ -232,58 +232,42 @@ def record_exploitation_transition(conn, cve_id, value, previous_value, observed
 
 
 def recompute_derived(conn, cve_id):
-    """Recompute first_none_date / first_poc_date / first_active_date,
-    exploitation_left_censored, and the two day-count columns for one CVE,
-    from its full exploitation_history. Milestones reflect the FIRST time
-    each value was observed; the full transition audit trail (including any
-    later oscillations) always remains available in exploitation_history."""
-    rows = conn.execute(
-        """SELECT value, previous_value, observed_date FROM exploitation_history
-           WHERE cve_id = ? ORDER BY observed_date ASC, id ASC""",
+    """Set first_active_date/days_publish_to_active from the CVE's most
+    recent exploitation_history row -- these describe its CURRENT run of
+    being active (the date of the latest transition INTO "active"), not a
+    permanent record of the first time it was ever active. Null them out
+    the moment exploitation is no longer "active", so the stored value
+    always agrees with the frontend, which only ever displays them while
+    exploitation is still "active" today (see activeSinceFormatter/
+    daysActiveFormatter in docs/js/app.js) -- including in CSV/JSON export,
+    which otherwise has no formatter to hide a stale value with."""
+    row = conn.execute(
+        """SELECT value, observed_date FROM exploitation_history
+           WHERE cve_id = ? ORDER BY observed_date DESC, id DESC LIMIT 1""",
         (cve_id,),
-    ).fetchall()
+    ).fetchone()
 
-    if not rows:
+    if row is None:
         return
 
-    first_none = next((r["observed_date"] for r in rows if r["value"] == "none"), None)
-    first_poc = next((r["observed_date"] for r in rows if r["value"] == "poc"), None)
-    first_active = next((r["observed_date"] for r in rows if r["value"] == "active"), None)
-
-    left_censored = 1 if rows[0]["previous_value"] is None and rows[0]["value"] != "none" else 0
-
-    days_none_to_active = _day_delta(first_none, first_active)
-    days_poc_to_active = _day_delta(first_poc, first_active)
-
-    cve_row = conn.execute("SELECT date_published FROM cve WHERE cve_id = ?", (cve_id,)).fetchone()
-    date_published = cve_row["date_published"] if cve_row else None
-    days_publish_to_active = _publish_day_delta(date_published, first_active)
+    if row["value"] == "active":
+        active_since = row["observed_date"]
+        cve_row = conn.execute("SELECT date_published FROM cve WHERE cve_id = ?", (cve_id,)).fetchone()
+        date_published = cve_row["date_published"] if cve_row else None
+        days_publish_to_active = _publish_day_delta(date_published, active_since)
+    else:
+        active_since = None
+        days_publish_to_active = None
 
     conn.execute(
-        """UPDATE cve SET first_none_date=?, first_poc_date=?, first_active_date=?,
-           exploitation_left_censored=?, days_none_to_active=?, days_poc_to_active=?,
-           days_publish_to_active=?
-           WHERE cve_id=?""",
-        (first_none, first_poc, first_active, left_censored,
-         days_none_to_active, days_poc_to_active, days_publish_to_active, cve_id),
+        "UPDATE cve SET first_active_date=?, days_publish_to_active=? WHERE cve_id=?",
+        (active_since, days_publish_to_active, cve_id),
     )
 
 
 def _to_date(iso_str):
     from datetime import datetime
     return datetime.fromisoformat(iso_str.replace("Z", "+00:00")).date()
-
-
-def _day_delta(start_iso, end_iso):
-    """Whole calendar days between two ISO timestamps, ignoring time-of-day.
-    None if either side is missing or start is after end (should not happen
-    given these are walked in chronological order, but guards against it)."""
-    if not start_iso or not end_iso:
-        return None
-    start, end = _to_date(start_iso), _to_date(end_iso)
-    if end < start:
-        return None
-    return (end - start).days
 
 
 def _publish_day_delta(published_iso, active_iso):
