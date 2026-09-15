@@ -1,5 +1,17 @@
 const NONE_SENTINEL = "__none__";
 
+// kevs shares its own filter/sort/column state via a "?s=" URL param (same
+// idea as this page's own "?state=" param -- see getShareableState below).
+// Building that param directly links straight into kevs pre-filtered to one
+// CVE, instead of dropping the user on its unfiltered home page.
+const KEVS_BASE_URL = "https://cyberdivemaster.github.io/kevs/";
+
+function buildKevsCrossCatalogUrl(cveId) {
+  const url = new URL(KEVS_BASE_URL);
+  url.searchParams.set("s", JSON.stringify({ filters: { cve_id: cveId } }));
+  return url.toString();
+}
+
 const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
 // Formatters below build HTML strings that Tabulator inserts directly into
@@ -158,21 +170,32 @@ function activeOnlySorter(a, b, aRow, bRow, column, dir) {
 
 function exploitationFormatter(cell) {
   const v = cell.getValue();
-  if (v === null || v === undefined || v === "") {
-    return '<span class="na-cell">N/A</span>';
-  }
-  const text = escapeHtml(v);
-  if (v !== "active") return text;
-  // Built directly from the CVE ID rather than trusting Vulnrichment's own
-  // kev_reference field -- that field only gets populated once Vulnrichment
-  // cross-references the KEV catalog itself, which can lag behind (a CVE
-  // can be genuinely KEV-listed for days before Vulnrichment reflects it).
-  // CISA's catalog page takes the CVE ID as a query filter directly, so this
-  // link is accurate at click-time regardless of Vulnrichment's own lag.
+  const text = (v === null || v === undefined || v === "")
+    ? '<span class="na-cell">N/A</span>'
+    : escapeHtml(v);
   const cveId = cell.getRow().getData().cve_id;
-  const kevUrl = `https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=${encodeURIComponent(cveId)}`;
-  return `${text} <a href="${kevUrl}" target="_blank" rel="noopener" ` +
-    `class="vulnrichment-link" title="Check CISA KEV catalog for this CVE">&#x1F6A8;</a>`;
+  let html = text;
+
+  if (v === "active") {
+    // Built directly from the CVE ID rather than trusting Vulnrichment's own
+    // kev_reference field -- that field only gets populated once Vulnrichment
+    // cross-references the KEV catalog itself, which can lag behind (a CVE
+    // can be genuinely KEV-listed for days before Vulnrichment reflects it).
+    // CISA's catalog page takes the CVE ID as a query filter directly, so this
+    // link is accurate at click-time regardless of Vulnrichment's own lag.
+    const cisaUrl = `https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=${encodeURIComponent(cveId)}`;
+    html += ` <a href="${cisaUrl}" target="_blank" rel="noopener" ` +
+      `class="vulnrichment-link" title="Check CISA KEV catalog for this CVE">&#x1F6A8;</a>`;
+  }
+
+  // Shown regardless of Vulnrichment's own Exploitation call -- unlike the
+  // CISA-only link above, the point here is spotting CVEs CISA doesn't (yet)
+  // flag as active but another catalog (ENISA/CIRCL/KEVIntel/VulnCheck)
+  // already lists.
+  const kevsUrl = buildKevsCrossCatalogUrl(cveId);
+  html += ` <a href="${kevsUrl}" target="_blank" rel="noopener" ` +
+    `class="vulnrichment-link kevs-link" title="Check KEV Cross-Catalog Viewer for this CVE">&#x1F50D;</a>`;
+  return html;
 }
 
 function cveLinkFormatter(cell) {

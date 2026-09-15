@@ -142,6 +142,19 @@ header h1 {
   opacity: 1;
 }
 
+/* The magnifying-glass glyph (kevs cross-catalog link) renders visibly
+   larger/heavier than the police-light glyph above at the same font-size --
+   an emoji-font metrics quirk, not a CSS bug -- so it needs its own smaller
+   size on top of a fainter base opacity to actually match/recede behind it. */
+.kevs-link {
+  font-size: 0.7em;
+  opacity: 0.35;
+}
+
+.kevs-link:hover {
+  opacity: 0.7;
+}
+
 .cvss-version-hint {
   opacity: 0.5;
   font-size: 0.8em;
