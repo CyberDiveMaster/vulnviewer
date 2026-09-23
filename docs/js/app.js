@@ -75,7 +75,7 @@ function cweFormatter(cell) {
 
 function withVersionHint(cell, formattedValue) {
   const version = cell.getRow().getData().cvss_version;
-  return version ? `${formattedValue} <span class="cvss-version-hint">v${escapeHtml(version)}</span>` : formattedValue;
+  return version ? `${formattedValue} <span class="cvss-hint">v${escapeHtml(version)}</span>` : formattedValue;
 }
 
 function cvssScoreFormatter(cell) {
@@ -356,8 +356,15 @@ function pipeOrFilterFunc(headerValue, rowValue) {
 // the "CVSS Score" column def below). Effectively covers the same "show me
 // the worst ones" and "just the mid-range" needs a numeric min/max range
 // would, without adding a second cramped input to an already-narrow column.
+// Ranges are CVSS v3.x/v4.0's own severity-rating table (the only versions
+// that carry a baseSeverity at all -- see cvssSeverityFilterFunc's doc
+// comment above on the handful of v2.0-primary CVEs this doesn't cover).
 const CVSS_SEVERITY_SELECT_VALUES = {
-  CRITICAL: "Critical", HIGH: "High", MEDIUM: "Medium", LOW: "Low", NONE: "None",
+  CRITICAL: 'Critical <span class="cvss-hint">9.0-10.0</span>',
+  HIGH: 'High <span class="cvss-hint">7.0-8.9</span>',
+  MEDIUM: 'Medium <span class="cvss-hint">4.0-6.9</span>',
+  LOW: 'Low <span class="cvss-hint">0.1-3.9</span>',
+  NONE: 'None <span class="cvss-hint">0.0</span>',
 };
 
 function cvssSeverityFilterFunc(headerValue, rowValue, rowData) {
@@ -480,17 +487,17 @@ const VECTOR_SELECT_VALUES = {
   // have no AT component at all, so it's N/A (not just absent) for any CVE
   // whose primary vector is v3.x or earlier.
   AT: {
-    N: 'N (None) <span class="cvss-version-hint">v4.0</span>',
-    P: 'P (Present) <span class="cvss-version-hint">v4.0</span>',
+    N: 'N (None) <span class="cvss-hint">v4.0</span>',
+    P: 'P (Present) <span class="cvss-hint">v4.0</span>',
   },
   PR: { N: "N (None)", L: "L (Low)", H: "H (High)" },
   // R only exists in CVSS v3.x; P/A only exist in v4.0 -- N is the only
   // value common to both, so it's the only one left without a version hint.
   UI: {
     N: "N (None)",
-    R: 'R (Required) <span class="cvss-version-hint">v3.x</span>',
-    P: 'P (Passive) <span class="cvss-version-hint">v4.0</span>',
-    A: 'A (Active) <span class="cvss-version-hint">v4.0</span>',
+    R: 'R (Required) <span class="cvss-hint">v3.x</span>',
+    P: 'P (Passive) <span class="cvss-hint">v4.0</span>',
+    A: 'A (Active) <span class="cvss-hint">v4.0</span>',
   },
 };
 
