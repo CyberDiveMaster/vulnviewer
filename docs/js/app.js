@@ -349,11 +349,21 @@ function pipeOrFilterFunc(headerValue, rowValue) {
   return needles.some((n) => haystack.includes(n));
 }
 
-function minScoreFilterFunc(headerValue, rowValue) {
-  if (headerValue === "" || headerValue === null || headerValue === undefined) return true;
-  const min = Number(headerValue);
-  if (Number.isNaN(min)) return true;
-  return rowValue !== null && rowValue !== undefined && Number(rowValue) >= min;
+// CVSS Score's own header filter is by severity CATEGORY (Critical/High/
+// Medium/Low/None), not a numeric range -- this filters on cvss_severity via
+// rowData rather than the column's own cvss_score rowValue, while the column
+// itself keeps displaying/sorting the raw number (see cvssScoreFormatter and
+// the "CVSS Score" column def below). Effectively covers the same "show me
+// the worst ones" and "just the mid-range" needs a numeric min/max range
+// would, without adding a second cramped input to an already-narrow column.
+const CVSS_SEVERITY_SELECT_VALUES = {
+  CRITICAL: "Critical", HIGH: "High", MEDIUM: "Medium", LOW: "Low", NONE: "None",
+};
+
+function cvssSeverityFilterFunc(headerValue, rowValue, rowData) {
+  if (!headerValue || headerValue.length === 0) return true;
+  const normalized = rowData.cvss_severity || NONE_SENTINEL;
+  return headerValue.includes(normalized);
 }
 
 // epss_score is stored as a raw 0-1 probability but displayed as a
@@ -665,8 +675,9 @@ const columns = [
   {
     title: "CVSS Score", field: "cvss_score", sorter: "number",
     sorterParams: { alignEmptyValues: "bottom" },
-    headerFilter: "input", headerFilterFunc: minScoreFilterFunc,
-    headerFilterPlaceholder: "Min score", formatter: cvssScoreFormatter,
+    headerFilter: multiSelectHeaderFilter(CVSS_SEVERITY_SELECT_VALUES),
+    headerFilterFunc: cvssSeverityFilterFunc, headerFilterEmptyCheck: multiSelectEmptyCheck,
+    formatter: cvssScoreFormatter,
   },
   {
     title: "AV", field: "cvss_av", formatter: naFormatter, visible: false,
