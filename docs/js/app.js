@@ -541,16 +541,27 @@ const BOD_TIER_ORDER = [
 // mutate and re-sort/re-filter/re-render all ~178k rows on every click --
 // benchmarked at ~1s via replaceData, and outright hung via updateData),
 // both possible answers are computed once at load time as two separate
-// static columns (see bod_tier_exposed/bod_tier_not_exposed below). In
-// KEV, Automatable, and Technical Impact all come directly from
-// Vulnrichment (the directive explicitly defines them that way in
-// Appendix A note j).
+// static columns (see bod_tier_exposed/bod_tier_not_exposed below).
+//
+// In KEV is approximated by exploitation === "active" rather than
+// kev_date_added (Vulnrichment's own cross-reference to the formal KEV
+// catalog entry), by deliberate choice: this site sources everything from
+// Vulnrichment alone, and kev_date_added lags behind exploitation being
+// assessed "active" by anywhere from days to several months (sometimes
+// never catching up at all) since it depends on Vulnrichment's own,
+// separate KEV cross-referencing pass. exploitation is Vulnrichment's more
+// current signal for the same underlying fact. This isn't a perfect
+// stand-in -- a small number of CVEs are assessed "active" without ever
+// being formally KEV-listed (e.g. CVE-2022-21894) -- but it tracks CISA's
+// real KEV additions far more closely in practice than kev_date_added does.
+// Automatable and Technical Impact come directly from Vulnrichment too (the
+// directive explicitly defines all three this way in Appendix A note j).
 function bodTierFor(row, assumeExposed) {
   if (row.automatable !== "yes" && row.automatable !== "no") return null;
   if (row.technical_impact !== "total" && row.technical_impact !== "partial") return null;
   const key = [
     assumeExposed ? "1" : "0",
-    row.kev_date_added ? "1" : "0",
+    row.exploitation === "active" ? "1" : "0",
     row.automatable === "yes" ? "1" : "0",
     row.technical_impact === "total" ? "1" : "0",
   ].join(",");
