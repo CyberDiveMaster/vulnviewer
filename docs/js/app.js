@@ -149,9 +149,15 @@ function daysActiveFormatter(cell) {
 // built-in string/number sorters, which flip only when dir === "asc" for a
 // "bottom" alignment). Shared by both "Active Since" and "Days" -- the
 // comparison itself (a < b / a > b) works for either dates or numbers.
+//
+// Emptiness must be checked with === null/undefined/"", NOT a plain !a --
+// Days can legitimately be 0 (published and assessed active the same day),
+// and 0 is falsy in JS, so !a wrongly treated a real 0 as "no value" and
+// pinned it to the bottom right along with actual N/A rows.
 function activeOnlySorter(a, b, aRow, bRow, column, dir) {
-  const aEmpty = aRow.getData().exploitation !== "active" || !a;
-  const bEmpty = bRow.getData().exploitation !== "active" || !b;
+  const isEmptyValue = (v) => v === null || v === undefined || v === "";
+  const aEmpty = aRow.getData().exploitation !== "active" || isEmptyValue(a);
+  const bEmpty = bRow.getData().exploitation !== "active" || isEmptyValue(b);
   let emptyAlign = 0;
 
   if (aEmpty) {
