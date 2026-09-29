@@ -40,8 +40,9 @@ header h1 {
 }
 
 #filter-count {
-  font-size: 0.85rem;
-  opacity: 0.8;
+  font-size: 1.15rem;
+  font-weight: 700;
+  opacity: 1;
   margin-right: auto;
 }
 
