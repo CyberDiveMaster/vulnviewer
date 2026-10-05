@@ -43,7 +43,19 @@ header h1 {
   font-size: 1.15rem;
   font-weight: 700;
   opacity: 1;
-  margin-right: auto;
+  /* No margin-right:auto here -- #legend below already takes the slack
+     with flex:1, and adding both would shove the legend off its centre.
+     Matches kevs' own version of this toolbar. */
+}
+
+/* Centered, muted explainer for the Exploitation column's two link icons
+   -- roughly midway across the toolbar rather than off in the header
+   above. Same treatment as KEV Cross-Catalog Viewer's own legend. */
+#legend {
+  flex: 1;
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.6;
 }
 
 #column-toggle-wrap {
