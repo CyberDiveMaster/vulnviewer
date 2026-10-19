@@ -277,6 +277,40 @@ header h1 {
   background: rgba(128, 128, 128, 0.15);
 }
 
+/* Muted and a notch below body size, and clearly below the table so it
+   never competes with it. The table is the page; this explains it. Same
+   treatment as KEV Cross-Catalog Viewer's own #about section. */
+#about {
+  max-width: 62ch;
+  margin: 2.5rem 0 0.5rem;
+  font-size: 0.85rem;
+  line-height: 1.65;
+  opacity: 0.75;
+}
+
+#about h2 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
+#about h3 {
+  font-size: 0.85rem;
+  margin: 1.25rem 0 0.4rem;
+}
+
+#about p {
+  margin: 0 0 0.75rem;
+}
+
+#about ul {
+  margin: 0 0 0.75rem;
+  padding-left: 1.2rem;
+}
+
+#about li {
+  margin-bottom: 0.35rem;
+}
+
 footer {
   display: flex;
   align-items: center;

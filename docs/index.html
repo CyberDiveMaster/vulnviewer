@@ -3,7 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vulnrichment Viewer</title>
+  <!-- Brand name stays first so the tab and any bookmark still read as
+       this tool; the keywords after the dash are what someone actually
+       types into a search box. og:title/twitter:title below deliberately
+       keep the short form -- a share card wants a name, not a keyword
+       list. Matches KEV Cross-Catalog Viewer's own title pattern. -->
+  <title>Vulnrichment Viewer — CISA Vulnrichment CVE Data, Searchable</title>
   <meta name="description" content="A free, serverless viewer for CISA's Vulnrichment CVE data. Filter and sort by CVSS score, Exploitation/Automatable/Technical Impact (SSVC), CVSS vector components (AV/AC/AT/PR/UI), vendor, product, and CWE, and see how many days it took a CVE to go from published to actively exploited.">
   <meta name="google-site-verification" content="hh3LLVk915X9uakXYwwQI4HN3u9Y3BLXL_o_gDPvIO8" />
   <link rel="canonical" href="https://cyberdivemaster.github.io/vulnviewer/">
@@ -40,6 +45,65 @@
     <span id="export-status"></span>
   </div>
   <div id="cve-table"></div>
+
+  <!-- The table itself is built by JavaScript, so to a crawler this page
+       would otherwise be a title and one line of subtitle. This section
+       is the only substantial indexable text on it -- and it earns its
+       place for readers too, since none of it is explained anywhere else
+       on the page. -->
+  <section id="about">
+    <h2>Why build on Vulnrichment instead of raw CVE data?</h2>
+    <p>
+      NVD's own analysis backlog means a large share of CVEs sit unscored for
+      months after publication. CISA's Vulnrichment project fills that gap by
+      publishing its own CVSS scores and SSVC decision points (Exploitation,
+      Automatable, Technical Impact) for CVEs NVD hasn't gotten to yet &mdash;
+      but it ships as one JSON file per CVE inside a git repository, not a
+      searchable table. This page flattens that into a single filterable,
+      sortable view, with a few derived metrics layered on top that
+      Vulnrichment doesn't provide directly.
+    </p>
+
+    <h3>What this page adds on top of Vulnrichment</h3>
+    <ul>
+      <li><strong>Days</strong> &mdash; calendar days from a CVE's publication
+        to the start of its current run of being actively exploited, mined
+        from Vulnrichment's own commit history rather than a single
+        snapshot.</li>
+      <li><strong>BOD 26-04 remediation tier</strong> &mdash; computed from
+        CISA's Binding Operational Directive 26-04 matrix (Publicly Exposed
+        &times; In KEV &times; Automatable &times; Technical Impact).
+        Publicly Exposed is asset-level and can't come from CVE data alone,
+        so both possible answers are shown as separate columns.</li>
+      <li><strong>EPSS</strong> &mdash; FIRST.org's daily exploit-probability
+        score and percentile, synced on its own schedule since it's a
+        different data source from Vulnrichment.</li>
+      <li><strong>KEV Cross-Catalog Viewer link</strong> &mdash; every
+        Exploitation value links out to check whether CISA hasn't (yet)
+        flagged a CVE active but another catalog (ENISA, CIRCL, Previdian,
+        VulnCheck) already lists it as exploited.</li>
+    </ul>
+
+    <h3>How to read the table</h3>
+    <p>
+      <strong>Active Since</strong> and <strong>Days</strong> only show a
+      value while a CVE's Exploitation is currently "active" &mdash; both go
+      blank again once Vulnrichment walks that assessment back down, since
+      the historical date no longer describes the CVE's present state.
+      <strong>CVSS Score</strong> filters by severity category
+      (Critical/High/Medium/Low/None) rather than a numeric range. CWE
+      numbers link to their MITRE definitions, and Vendor/Product accept
+      pipe-delimited terms (e.g. "forti|cisco|microsoft") to match any of
+      several at once.
+    </p>
+    <p>
+      Vulnrichment is polled every 10 minutes (most polls are no-ops unless
+      upstream actually changed) and EPSS once daily. Filter, sort, and
+      column choices are encoded in the address bar, so any view you build
+      can be shared as a link, and Export CSV writes exactly the rows
+      currently showing.
+    </p>
+  </section>
 
   <footer>
     <div id="share-links">
